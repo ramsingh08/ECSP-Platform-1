@@ -1,0 +1,975 @@
+FUNCTION_BLOCK "FB_Screening_Check"
+TITLE =%version: 1.07 % CN: 41 
+//Function:
+//1.With this block you can hold baggage for a max. amount of time until a 
+//  screening result is received. If no result is received within this time, the 
+//  bag record is updated.
+//2.The block is used in combination with a TZ to create a TDZ. The TDZ is used in
+//  combination with a HBZ and VBZ or SVZ
+//
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: dinsdag 21 juli 2015 15:41:30 %
+//              %release: VI_CONV/RA_Dev_15.3 %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7550: Waiting time out screening not correct          nlHdL    21-07-15   1.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.06
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   1.06
+//22334: FB_Screening_Check sends statistical ID 0      nlHdL    06-01-15   0.05
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.04
+//15952: Block modified to support standard 3           nlple    25-09-13   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 1.00 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Entry : BLOCK_DB ;	//Data structure: Position DataBlock TDZ Entry
+  i_DB_PLT_Exit : BLOCK_DB ;	//Data structure: Position DataBlock TDZ Exit
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CFG_Max_Decision_Time : INT  := 200;	//CFG: [0.1sec] Maximum screening decision time (0 = no waiting)
+  i_CFG_Screening_Level : INT ;	//CFG:  Screening level
+END_VAR
+VAR_OUTPUT
+  o_Ext_Wait_for_decision : BOOL ;	//Request signal to section disable send products
+END_VAR
+VAR
+  s_STAT_No_Dec_Lvl_1 : INT ;	//Statistical counter "No Decision Level 1"
+  s_STAT_No_Dec_Lvl_2 : INT ;	//Statistical counter "No Decision Level 2"
+  s_STAT_No_Dec_Lvl_3 : INT ;	//Statistical counter "No Decision Level 3"
+  s_STAT_No_Dec_Lvl_4 : INT ;	//Statistical counter "No Decision Level 4"
+  s_STAT_No_Dec_Lvl_5 : INT ;	//Statistical counter "No Decision Level 5"
+  s_STAT_Time_Out_Lvl_1 : INT ;	//Statistical counter "Time Out Level 1"
+  s_STAT_Time_Out_Lvl_2 : INT ;	//Statistical counter "Time Out Level 2"
+  s_STAT_Time_Out_Lvl_3 : INT ;	//Statistical counter "Time Out Level 3"
+  s_STAT_Time_Out_Lvl_4 : INT ;	//Statistical counter "Time Out Level 4"
+  s_STAT_Time_Out_Lvl_5 : INT ;	//Statistical counter "Time Out Level 5"
+  s_PLT_DB_Nr_Entry : INT ;	//Copy of i_DB_PLT_Entry
+  s_PLT_DB_Nr_Exit : INT ;	//Copy of i_DB_PLT_Exit
+  s_DB_Num_Event : INT ;	//Number of the Event DB
+  s_Length_Section_Entry : INT ;	//Length of the conveyor
+  s_Time_entry_sec_total : INT ;	//Entry time in sec [0-3600]
+  s_Time_exit_sec_total : INT ;	//Exit time in sec [0-3600]
+  s_Time_difference_sec : INT ;	//Time difference exit-entry [0-3600sec]
+  s_Time_difference_01_sec : INT ;	//Time difference exit-entry [0.1 timer value]
+  s_Link_nr_on_entry_pos : INT ;	//Data nr. on entry position
+  s_NIR_nr_on_entry_pos : INT ;	//Data nr. on entry position
+  s_Link_nr_in_stop_win : INT ;	//Data nr. in stop window
+  s_NIR_nr_in_stop_win : INT ;	//Data nr. in stop window
+  s_LIC_nr_in_stop_win : INT ;	//Data nr. in stop window
+  s_Time_LIC_record : INT ;	//Time stamp found in LIC record 
+  s_Time_remaining_wait : INT ;	//Actual remaining wait time [0.01 sec]
+  s_MaxDecision_Time : INT ;	//Maximum decision time
+  s_Timestamp : INT ;	//Time stamp found in stop window
+  s_Item_on_exit_position : BOOL ;	//Item present on exit position
+  s_Item_timer_elapsed : BOOL ;	//Static item timer elapsed
+  s_Screening_Wait : BOOL ;	//Item wait for srceening decision
+  s_FP_item_entry : BOOL ;	//Flank positive item on entry position
+  s_FP_item_exit : BOOL ;	//Flank positive item on exit position
+  s_OS_Item_exit : BOOL ;	//One shot item on exit position
+  s_OS_item_Entry : BOOL ;	//One shot item entered PLT
+  s_OS_Time_Out_Decision : BOOL ;	//One shot time out leve 4 screening
+  s_FP_Time_Out_Decision : BOOL ;	//Positive edge time out leve 4 screening
+  s_NO_timestamp : BOOL ;	//No timestamp found on stop position
+  s_Screening_Required_L1 : BOOL ;	//Item screening required level 1
+  s_Screening_Reached_L1 : BOOL ;	//Item screening reached (=secure)
+  s_Screening_Failed_L1 : BOOL ;	//Item screening failed (=unsecure)
+  s_FP_No_Dec_Lvl_1 : BOOL ;	//Positive edge no decision level 1 screening
+  s_Screening_Required_L2 : BOOL ;	//Item screening required level 2
+  s_Screening_Reached_L2 : BOOL ;	//Item screening reached (=secure)
+  s_Screening_Failed_L2 : BOOL ;	//Item screening failed (=unsecure)
+  s_FP_No_Dec_Lvl_2 : BOOL ;	//Positive edge no decision level 2 screening
+  s_Screening_Required_L3 : BOOL ;	//Item screening required level 3
+  s_Screening_Reached_L3 : BOOL ;	//Item screening reached (=secure)
+  s_Screening_Failed_L3 : BOOL ;	//Item screening failed (=unsecure)
+  s_FP_No_Dec_Lvl_3 : BOOL ;	//Positive edge no decision level 3 screening
+  s_Screening_Required_L4 : BOOL ;	//Item screening required level 4
+  s_Screening_Reached_L4 : BOOL ;	//Item screening reached (=secure)
+  s_Screening_Failed_L4 : BOOL ;	//Item screening failed (=unsecure)
+  s_FP_No_Dec_Lvl_4 : BOOL ;	//Positive edge no decision level 4 screening
+  s_Screening_Required_L5 : BOOL ;	//Item screening required level 5
+  s_Screening_Reached_L5 : BOOL ;	//Item customs reached (=secure)
+  s_Screening_Failed_L5 : BOOL ;	//Item customs failed (=unsecure)
+  s_FP_No_Dec_Lvl_5 : BOOL ;	//Positive edge no decision level 5 screening
+  s_Result_Higher_Than_L1 : BOOL ;	//Result answer is higher 
+  s_Result_Higher_Than_L2 : BOOL ;	//Result answer is higher than required level 2
+  s_Result_Higher_Than_L3 : BOOL ;	//Result answer is higher than required level 3
+  s_Result_Higher_Than_L4 : BOOL ;	//Result answer is higher than required level 4
+END_VAR
+VAR_TEMP
+  t_Return_Value_INT : INT ;	//Return Value
+  t_PLT_Position : INT ;	//Temp PLT First found info
+  t_PLT_Inf : INT ;	//Temp PLT First found info
+  t_PLT_DB_Number : INT ;	//Temp PLT DB number
+  t_Time_result_add_3600 : INT ;	//Result value time + 3600
+  t_PLT_Nr_Items_Found : INT ;	//Number of items found in PLT
+  t_Entry_Info : INT ;	//Info entered PLT
+  t_Entry_Data : INT ;	//Data enterd PLT
+  t_Screening_level_1_cfg : BOOL ;	//Screening level 1 configured
+  t_Screening_level_2_cfg : BOOL ;	//Screening level 2 configured
+  t_Screening_level_3_cfg : BOOL ;	//Screening level 3 configured
+  t_Screening_level_4_cfg : BOOL ;	//Screening level 3 configured
+  t_Screening_level_5_cfg : BOOL ;	//Screening customs level configured
+  t_Item_Exit : BOOL ;	//Item at exit position
+  t_OS_No_Dec_Lvl_1 : BOOL ;	//One shot no decision level 5 screening
+  t_OS_No_Dec_Lvl_5 : BOOL ;	//One shot no decision level 5 screening
+  t_OS_No_Dec_Lvl_4 : BOOL ;	//One shot no decision level 5 screening
+  t_OS_No_Dec_Lvl_3 : BOOL ;	//One shot no decision level 5 screening
+  t_OS_No_Dec_Lvl_2 : BOOL ;	//One shot no decision level 5 screening
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read entry / exit PLT DB / Event DB
+//The PLT_DB number is read from inside the PLT_DB. In the FB this number is used 
+//to read and search for data in the corresponding DB's.
+      OPN   "DB_Event_Zone"; 
+      L     DBNO; 
+      T     #s_DB_Num_Event; 
+
+      OPN   #i_DB_PLT_Entry; // Open tracking DB
+      L     DBNO; 
+      T     #s_PLT_DB_Nr_Entry; // Determine tracking block DB number
+
+      L     DBW   12; 
+      T     #s_Length_Section_Entry; // Determine length of the conveyor
+
+      L     DBW   18; // Determine the info 1=leading 2= trailing
+      T     #t_Entry_Info; 
+
+      L     #t_Entry_Info; 
+      L     1; 
+      ==I   ; 
+      FP    #s_FP_item_entry; 
+      =     #s_OS_item_Entry; 
+
+      L     DBW   20; // Determine Data = LNK number
+      T     #t_Entry_Data; 
+
+      OPN   #i_DB_PLT_Exit; // Open tracking DB
+      L     DBNO; 
+      T     #s_PLT_DB_Nr_Exit; // Determine tracking block DB number
+
+      A     DBX   10.7; // PEC latch signal from PLT DB
+      =     #s_Item_on_exit_position; 
+
+      A     #s_Item_on_exit_position; 
+      FP    #s_FP_item_exit; 
+      =     #s_OS_Item_exit; 
+
+      L     #i_CFG_Max_Decision_Time; 
+      T     #s_MaxDecision_Time; 
+
+NETWORK
+TITLE =BA: Determine configuration settings
+
+      NOP   0; 
+// Determine screening level
+      L     #i_CFG_Screening_Level; // Check for correct configuration
+      L     1; 
+      <I    ; 
+      JCN   BA01; 
+      L     1; // minimum value
+      T     #i_CFG_Screening_Level; 
+
+BA01: L     #i_CFG_Screening_Level; // Check for correct configuration
+      L     5; 
+      >I    ; 
+      JCN   BA02; 
+      L     5; // maximum value
+      T     #i_CFG_Screening_Level; 
+
+
+BA02: L     #i_CFG_Screening_Level; // Determine screening level 
+      L     1; // Configuration 1
+      ==I   ; // =
+      =     #t_Screening_level_1_cfg; // Screening level 1
+
+      L     #i_CFG_Screening_Level; // Determaine screening level
+      L     2; // Configuration 2
+      ==I   ; // =
+      =     #t_Screening_level_2_cfg; // Screening level 2
+
+      L     #i_CFG_Screening_Level; // Determine screening level
+      L     3; // Configuration 3
+      ==I   ; // =
+      =     #t_Screening_level_3_cfg; // Screening level 3  
+
+      L     #i_CFG_Screening_Level; // Determine screening level
+      L     4; // Configuration 4
+      ==I   ; // =
+      =     #t_Screening_level_4_cfg; // Screening level 4  
+
+      L     #i_CFG_Screening_Level; // Determine screening level
+      L     5; // Configuration 5
+      ==I   ; // =
+      =     #t_Screening_level_5_cfg; // Screening level 5  
+
+NETWORK
+TITLE =CA: Read PLC time, create time stamp, write time stamp in LIC
+//When an item is detected, The CPU time [min. and sec.] is writen into the 
+//corresponding LIC record.
+      NOP   0; 
+// Read actual time on handover
+
+      A     #s_OS_item_Entry; 
+      JCN   CA99; 
+      L     "MW_Hour_Sec"; // Load real time CPU seconds
+      T     #s_Time_entry_sec_total; // Into static time in seconds [INT]
+
+      L     #t_Entry_Data; 
+      T     #s_Link_nr_on_entry_pos; // to static
+
+
+// Read NIR nr out of Link record
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Link_nr_on_entry_pos,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".NIR,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_NIR_nr_on_entry_pos);
+
+
+// Write time stamp screening into LIC
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_NIR_nr_on_entry_pos,
+           i_P_INT_Record           := "DB_UDT_NIR_Record".Timestamp_TDZ_security,
+           i_DB                     := "DB_NIR_List",
+           i_INT                    := #s_Time_entry_sec_total,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Read LIC Record for screening request and result
+//If data is found in network EA, and this same data is present in the search 
+//window, the screening request, and screening result is read from the LIC record 
+//with the corresponding data number 
+      NOP   0; 
+// Read LIC data before stop position
+// If item is not stopped yet, read of screening result must be done before stop positiom
+// If item is stopped, continue reading screening results on stopped position
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr_Exit,
+           i_Position               := 0,
+           i_Window                 := 60,
+           o_Position               := #t_PLT_Position,
+           o_Info                   := #t_PLT_Inf,
+           o_LNK                    := #s_Link_nr_in_stop_win,
+           o_DB_PLT_Num             := #t_PLT_DB_Number,
+           o_Number_Items_Found     := #t_PLT_Nr_Items_Found);
+
+      L     #t_PLT_Inf; 
+      L     1; 
+      ==I   ; 
+      =     #t_Item_Exit; 
+      JCN   DA01; // NOT read record status
+
+// Read LIC nr out of Link record
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Link_nr_in_stop_win,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_LIC_nr_in_stop_win);
+
+// Read NIR nr out of Link record
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Link_nr_in_stop_win,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".NIR,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_NIR_nr_in_stop_win);
+
+// Search for Timestamp
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_NIR_nr_in_stop_win,
+           i_P_INT_Record           := "DB_UDT_NIR_Record".Timestamp_TDZ_security,
+           i_DB                     := "DB_NIR_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_Timestamp);
+
+// Check if the time stamp is valid
+      L     #s_Timestamp; 
+      L     0; 
+      ==I   ; 
+      =     #s_NO_timestamp; 
+
+// Search for screening requirement level
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Required_L1);
+
+// Search for screening result "Reached" (= accept)
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Reached_L1);
+
+// Search for screening result "Failed" (= failed)
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Failed_L1);
+
+// Search for screening requirement level
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Required_L2);
+
+// Search for screening result "Reached" (= accept)
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Reached_L2);
+
+// Search for screening result "failed"
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Failed_L2);
+
+// Search for screening requirement level
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Required_L3);
+
+// Search for screening result "Reached" (= accept)
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Reached_L3);
+
+// Search for screening result "Failed"
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Failed_L3);
+
+// Search for screening requirement level
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Required_L4);
+
+// Search for screening result "Reached" (= accept)
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Reached_L4);
+
+// Search for screening result "Failed"
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Failed_L4);
+
+// Search for screening requirement level
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Required_L5);
+
+// Search for screening result "Reached" (= accept)
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Reached_L5);
+
+// Search for screening result "Failed"
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC_nr_in_stop_win,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_BOOL                   := #s_Screening_Failed_L5);
+
+// Set flanc statistical counter, If Screening request, and no result is received
+DA01: A     #t_Item_Exit; 
+      AN    #s_Screening_Reached_L1; // AND NOT secure message received  L1
+      AN    #s_Screening_Failed_L1; // AND NOT unsecure message received  L1
+      FP    #s_FP_No_Dec_Lvl_1; 
+      =     #t_OS_No_Dec_Lvl_1; 
+
+      A     #t_Item_Exit; 
+      AN    #s_Screening_Reached_L2; // AND NOT secure message received  L2
+      AN    #s_Screening_Failed_L2; // AND NOT unsecure message received  L2
+      FP    #s_FP_No_Dec_Lvl_2; 
+      =     #t_OS_No_Dec_Lvl_2; 
+
+      A     #t_Item_Exit; 
+      AN    #s_Screening_Reached_L3; // AND NOT secure message received  L3
+      AN    #s_Screening_Failed_L3; // AND NOT unsecure message received  L3
+      FP    #s_FP_No_Dec_Lvl_3; 
+      =     #t_OS_No_Dec_Lvl_3; 
+
+      A     #t_Item_Exit; 
+      AN    #s_Screening_Reached_L4; // AND NOT secure message received  L4
+      AN    #s_Screening_Failed_L4; // AND NOT unsecure message received  L4
+      FP    #s_FP_No_Dec_Lvl_4; 
+      =     #t_OS_No_Dec_Lvl_4; 
+
+      A     #t_Item_Exit; 
+      AN    #s_Screening_Reached_L5; // AND NOT secure message received  L5
+      AN    #s_Screening_Failed_L5; // AND NOT unsecure message received  L5
+      FP    #s_FP_No_Dec_Lvl_5; 
+      =     #t_OS_No_Dec_Lvl_5; 
+
+
+NETWORK
+TITLE =EA: Read PLC time,read time stamp LIC, calculate time difference
+//At the exit position [NW FA] The time stamp is read out of the corresponding 
+//[data] LIC record and compared with the actual CPU time. The difference 
+//between the times is calculated 
+//levels, security and customs, the remaining wait time is calculated..
+      NOP   0; 
+// Read actual time on PEC position
+      A     #s_OS_Item_exit; 
+      JCN   EA99; 
+
+// Read LIC nr out of Link record
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Link_nr_in_stop_win,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".NIR,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_NIR_nr_in_stop_win);
+
+// Calculate total exit time in seconds INT
+
+      L     "MW_Hour_Sec"; // Load real time CPU seconds
+      T     #s_Time_exit_sec_total; // Into static time in seconds [INT]
+
+// Read LIC record for data security screening
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_NIR_nr_in_stop_win,
+           i_P_INT_Record           := "DB_UDT_NIR_Record".Timestamp_TDZ_security,
+           i_DB                     := "DB_NIR_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_Time_LIC_record);
+
+
+// Calculate time difference exit - entry time
+      L     #s_Time_exit_sec_total; // check if exit time
+      L     #s_Time_LIC_record; // < entry time
+      <I    ; 
+      JCN   EA01; 
+      L     #s_Time_exit_sec_total; // Exit time
+      L     3600; // + 3600  (exit time in next hour)
+      +I    ; 
+      T     #t_Time_result_add_3600; 
+      L     #s_Time_LIC_record; // - Entry time
+      -I    ; 
+      T     #s_Time_difference_sec; // = Time difference
+      JU    EA99; 
+
+EA01: L     #s_Time_exit_sec_total; // Exit time 
+      L     #s_Time_LIC_record; // - Entry time
+      -I    ; 
+      T     #s_Time_difference_sec; // = Time difference      
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Calculate remaining wait time
+//Check decision time for max. setting, and calculate remaining waiting time.
+      NOP   0; 
+// check configured decision time for max. setting
+      L     #s_MaxDecision_Time; 
+      L     3600; // maximum time 3600 seconds
+      >I    ; 
+      JCN   FA01; 
+      L     3600; 
+      T     #s_MaxDecision_Time; 
+
+// check if decison time is configured, wait for decision
+FA01: A     #s_OS_Item_exit; // Start calculation when item is on
+      JCN   FA99; // handover position (Exit TDZ)
+
+// Convert time difference to 0.1 sec
+      L     #s_Time_difference_sec; // calculate time value security screening
+      L     10; 
+      *I    ; 
+      T     #s_Time_difference_01_sec; // Time value [0.1sec] difference entry/exit security screening
+
+// check calculated time difference for max. seetting
+      L     #s_Time_difference_01_sec; // IF calculated  time difference
+      L     #s_MaxDecision_Time; // > max. decision time
+      >I    ; 
+      JCN   FA02; 
+      L     #s_MaxDecision_Time; // Load max. decision time 
+      T     #s_Time_difference_01_sec; // into calculated time difference
+FA02: NOP   0; 
+
+      SET   ; 
+      R     #s_Item_timer_elapsed; 
+
+// Calculate remaining wait time screening decision
+      L     #s_MaxDecision_Time; // CFG: max decision time
+      L     #s_Time_difference_01_sec; // Time value [0.1sec] difference entry/exit security screening
+      -I    ; 
+      T     #s_Time_remaining_wait; // remaining time, item wait
+      L     0; 
+      <I    ; // IF result is negative
+      JCN   FA99; 
+      L     0; // write 0 in time value 
+      T     #s_Time_remaining_wait; // remaining time, item wait
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Result answer level higher than required Level 1
+//LAD!
+//
+      A     #s_Screening_Required_L1; 
+      A(    ; 
+      O     #s_Screening_Reached_L2; 
+      O     #s_Screening_Failed_L2; 
+      O     #s_Screening_Reached_L3; 
+      O     #s_Screening_Failed_L3; 
+      O     #s_Screening_Reached_L4; 
+      O     #s_Screening_Failed_L4; 
+      O     #s_Screening_Reached_L5; 
+      O     #s_Screening_Failed_L5; 
+      )     ; 
+      =     #s_Result_Higher_Than_L1; 
+NETWORK
+TITLE =HA: Result answer level higher than required Level 2
+//LAD!
+//
+      A     #s_Screening_Required_L2; 
+      A(    ; 
+      O     #s_Screening_Reached_L3; 
+      O     #s_Screening_Failed_L3; 
+      O     #s_Screening_Reached_L4; 
+      O     #s_Screening_Failed_L4; 
+      O     #s_Screening_Reached_L5; 
+      O     #s_Screening_Failed_L5; 
+      )     ; 
+      =     #s_Result_Higher_Than_L2; 
+NETWORK
+TITLE =IA: Result answer level higher than required Level 3
+//LAD!
+//
+      A     #s_Screening_Required_L3; 
+      A(    ; 
+      O     #s_Screening_Reached_L4; 
+      O     #s_Screening_Failed_L4; 
+      O     #s_Screening_Reached_L5; 
+      O     #s_Screening_Failed_L5; 
+      )     ; 
+      =     #s_Result_Higher_Than_L3; 
+NETWORK
+TITLE =JA: Result answer level higher than required Level 4
+//LAD!
+//
+      A     #s_Screening_Required_L4; 
+      A(    ; 
+      O     #s_Screening_Reached_L5; 
+      O     #s_Screening_Failed_L5; 
+      )     ; 
+      =     #s_Result_Higher_Than_L4; 
+NETWORK
+TITLE =KA: Hold Item for max. time if no result received
+//LAD!
+      A     #s_Item_on_exit_position; // A     #s_Item_on_stop_position    // IF item on stop (PEC) position
+      A(    ; // AND security screening request 
+      A     #t_Screening_level_1_cfg; 
+      AN    #s_Screening_Reached_L1; // AND NOT secure message received  L3
+      AN    #s_Screening_Failed_L1; // AND NOT secure message received  L4
+      AN    #s_Screening_Reached_L2; 
+      AN    #s_Screening_Reached_L3; // AND NOT unsecure message received
+      AN    #s_Screening_Reached_L4; // AND NOT timer elapsed
+      AN    #s_Screening_Reached_L5; // AND NOT UFO detected
+      AN    #s_Result_Higher_Than_L1; 
+      O     ; 
+      A     #t_Screening_level_2_cfg; 
+      AN    #s_Screening_Reached_L2; 
+      AN    #s_Screening_Failed_L2; 
+      AN    #s_Screening_Reached_L3; 
+      AN    #s_Screening_Reached_L4; 
+      AN    #s_Screening_Reached_L5; 
+      AN    #s_Result_Higher_Than_L2; 
+      O     ; 
+      A     #t_Screening_level_3_cfg; 
+      AN    #s_Screening_Reached_L3; 
+      AN    #s_Screening_Failed_L3; 
+      AN    #s_Screening_Reached_L4; 
+      AN    #s_Screening_Reached_L5; 
+      AN    #s_Result_Higher_Than_L3; 
+      O     ; 
+      A     #t_Screening_level_4_cfg; 
+      AN    #s_Screening_Reached_L4; 
+      AN    #s_Screening_Failed_L4; 
+      AN    #s_Screening_Reached_L5; 
+      AN    #s_Result_Higher_Than_L4; 
+      O     ; 
+      A     #t_Screening_level_5_cfg; 
+      AN    #s_Screening_Reached_L5; 
+      AN    #s_Screening_Failed_L5; 
+      )     ; 
+      AN    #s_Item_timer_elapsed; 
+      AN    #s_NO_timestamp; 
+      =     #s_Screening_Wait; 
+NETWORK
+TITLE =LA: Hold Item for max. time if no result received
+//Count down timer for remaining wait time. The preset time is calculated in NW 
+//EA. 
+//Activate the output to hold an item at the exit section, until the count 
+//down timer eleapsed and no screening result is received.
+//If a creening result is received within the waiting time, the counter is reset, 
+//and the item is released directly
+// Count down timer
+      A     #s_Screening_Wait; // IF   count down
+      A     "M_OS_/0.1_sec."; // AND  time_one_shot
+      JCN   LA02; // ELSE no count
+
+      L     #s_Time_remaining_wait; // THEN currunt value-1
+      L     1; 
+      -I    ; 
+      JP    LA01; 
+      SET   ; 
+      S     #s_Item_timer_elapsed; // THEN time elapesed
+      L     0; 
+// Counter value status
+LA01: T     #s_Time_remaining_wait; // Transfer current timer value
+
+LA02: A     #s_Screening_Wait; 
+      =     #o_Ext_Wait_for_decision; // hold item    
+NETWORK
+TITLE =MA: Write item status in LIC record if no dec. received in time
+//Write the status "item_passed_decision point" if the item is released, and no 
+//screening result is received. Also send a screening package report.
+      A     #s_Item_timer_elapsed; // IF timer elapsed
+      FP    #s_FP_Time_Out_Decision; 
+      =     #s_OS_Time_Out_Decision; // Set flanc for statistical counter
+      JCN   MA99; 
+
+// SEND screening package report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1210,
+           i_Event_value            := #s_Link_nr_in_stop_win,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Statistics counters
+
+      NOP   0; // Hold comments
+// Statistics counters No Decision
+
+// No decision Level 1
+      L     #s_STAT_No_Dec_Lvl_1; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA01; 
+      A     #t_Screening_level_1_cfg; 
+      A     #t_OS_No_Dec_Lvl_1; // If Flanc active
+      JCN   NA01; 
+      L     #s_STAT_No_Dec_Lvl_1; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_No_Dec_Lvl_1; 
+
+// No decision Level 2
+NA01: L     #s_STAT_No_Dec_Lvl_2; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA02; 
+      A     #t_Screening_level_2_cfg; 
+      A     #t_OS_No_Dec_Lvl_2; // If Flanc active
+      JCN   NA02; 
+      L     #s_STAT_No_Dec_Lvl_2; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_No_Dec_Lvl_2; 
+
+// No decision Level 3
+NA02: L     #s_STAT_No_Dec_Lvl_3; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA03; 
+      A     #t_Screening_level_3_cfg; 
+      A     #t_OS_No_Dec_Lvl_3; // If Flanc active
+      JCN   NA03; 
+      L     #s_STAT_No_Dec_Lvl_3; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_No_Dec_Lvl_3; 
+
+// No decision Level 4
+NA03: L     #s_STAT_No_Dec_Lvl_4; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA04; 
+      A     #t_Screening_level_4_cfg; 
+      A     #t_OS_No_Dec_Lvl_4; // If Flanc active
+      JCN   NA04; 
+      L     #s_STAT_No_Dec_Lvl_4; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_No_Dec_Lvl_4; 
+
+// No decision Level 5
+NA04: L     #s_STAT_No_Dec_Lvl_5; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA05; 
+      A     #t_Screening_level_5_cfg; 
+      A     #t_OS_No_Dec_Lvl_5; // If Flanc active
+      JCN   NA05; 
+      L     #s_STAT_No_Dec_Lvl_5; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_No_Dec_Lvl_5; 
+NA05: NOP   0; 
+
+
+// Statistics counters Time Out Decision
+
+// Time out decision Level 1
+      A     #t_Screening_level_1_cfg; 
+      JCN   NA11; 
+
+// Time Out Level 1
+      L     #s_STAT_Time_Out_Lvl_1; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA11; 
+      A     #s_OS_Time_Out_Decision; // If Flanc active
+      JCN   NA11; 
+      L     #s_STAT_Time_Out_Lvl_1; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_Time_Out_Lvl_1; 
+      JU    NA99; 
+
+
+// Time out decision Level 2
+NA11: A     #t_Screening_level_2_cfg; 
+      JCN   NA12; 
+
+// Time Out Level 2
+      L     #s_STAT_Time_Out_Lvl_2; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA12; 
+      A     #s_OS_Time_Out_Decision; // If Flanc active
+      JCN   NA12; 
+      L     #s_STAT_Time_Out_Lvl_2; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_Time_Out_Lvl_2; 
+      JU    NA99; 
+
+
+// Time out decision Level 3
+NA12: A     #t_Screening_level_3_cfg; 
+      JCN   NA13; 
+
+// Time Out Level 3
+      L     #s_STAT_Time_Out_Lvl_3; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA13; 
+      A     #s_OS_Time_Out_Decision; // If Flanc active
+      JCN   NA13; 
+      L     #s_STAT_Time_Out_Lvl_3; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_Time_Out_Lvl_3; 
+      JU    NA99; 
+
+// Time out decision Level 4
+NA13: A     #t_Screening_level_4_cfg; 
+      JCN   NA14; 
+
+// Time Out Level 4
+      L     #s_STAT_Time_Out_Lvl_4; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA14; 
+      A     #s_OS_Time_Out_Decision; // If Flanc active
+      JCN   NA14; 
+      L     #s_STAT_Time_Out_Lvl_4; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_Time_Out_Lvl_4; 
+      JU    NA99; 
+
+// Time out decision Level 5
+NA14: A     #t_Screening_level_5_cfg; 
+      JCN   NA99; 
+
+// Time Out Level 5
+      L     #s_STAT_Time_Out_Lvl_5; 
+      L     32767; // Check for max. value
+      <I    ; 
+      JCN   NA99; 
+      A     #s_OS_Time_Out_Decision; // If Flanc active
+      JCN   NA99; 
+      L     #s_STAT_Time_Out_Lvl_5; // Load counter value
+      L     1; 
+      +I    ; // Add 1
+      T     #s_STAT_Time_Out_Lvl_5; 
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Data layer
+//Send statistical data to DB_Event, clear statistical counters in PLC, and send 
+//data from DB_Event to BPI
+      NOP   0; // Hold comments
+// Reset counters
+      A     #i_CMD_Send_Stat; 
+      JCN   OA99; 
+
+// Send statistical counters Level 1
+      A     #t_Screening_level_1_cfg; 
+      JCN   OA01; 
+
+//Write No Decision Level 1 to DB_Event
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2001,// 2001 = Statistical value
+           i_Event_value            := #s_STAT_No_Dec_Lvl_1,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+//Write Time Out Level 1 to DB_Event 
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2002,// 2002 = Statistical value
+           i_Event_value            := #s_STAT_Time_Out_Lvl_1,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+// Reset statistical counters
+      L     0; 
+      T     #s_STAT_No_Dec_Lvl_1; 
+      T     #s_STAT_Time_Out_Lvl_1; 
+
+// Send statistical counters Level 2
+OA01: A     #t_Screening_level_2_cfg; 
+      JCN   OA02; 
+
+//Write No Decision Level 2 to DB_Event
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2003,// 2003 = Statistical value
+           i_Event_value            := #s_STAT_No_Dec_Lvl_2,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+//Write Time Out Level 2 to DB_Event 
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2004,// 2004 = Statistical value
+           i_Event_value            := #s_STAT_Time_Out_Lvl_2,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+// Reset statistical counters
+      L     0; 
+      T     #s_STAT_No_Dec_Lvl_2; 
+      T     #s_STAT_Time_Out_Lvl_2; 
+
+// Send statistical counters Level 3
+OA02: A     #t_Screening_level_3_cfg; 
+      JCN   OA03; 
+
+//Write No Decision Level 3 to DB_Event
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2005,// 2005 = Statistical value
+           i_Event_value            := #s_STAT_No_Dec_Lvl_3,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+//Write Time Out Level 3 to DB_Event 
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2006,// 2006 = Statistical value
+           i_Event_value            := #s_STAT_Time_Out_Lvl_3,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+// Reset statistical counters
+      L     0; 
+      T     #s_STAT_No_Dec_Lvl_3; 
+      T     #s_STAT_Time_Out_Lvl_3; 
+
+// Send statistical counters Level 4
+OA03: A     #t_Screening_level_4_cfg; 
+      JCN   OA04; 
+
+//Write No Decision Level 4 to DB_Event
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2007,// 2007 = Statistical value
+           i_Event_value            := #s_STAT_No_Dec_Lvl_4,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+//Write Time Out Level 4 to DB_Event 
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2008,// 2008 = Statistical value
+           i_Event_value            := #s_STAT_Time_Out_Lvl_4,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+// Reset statistical counters
+      L     0; 
+      T     #s_STAT_No_Dec_Lvl_4; 
+      T     #s_STAT_Time_Out_Lvl_4; 
+
+OA04: A     #t_Screening_level_5_cfg; 
+      JCN   OA99; 
+
+//Write No Decision customs to DB_Event
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2009,// 2009 = Statistical value
+           i_Event_value            := #s_STAT_No_Dec_Lvl_5,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+//Write Time Out customs to DB_Event 
+      CALL "FC_Write_Event" (// Write value to DB_Event
+           i_Message_ID             := 2010,// 2010 = Statistical value
+           i_Event_value            := #s_STAT_Time_Out_Lvl_5,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Return_Value_INT);
+
+// Reset statistical counters
+      L     0; 
+      T     #s_STAT_No_Dec_Lvl_5; 
+      T     #s_STAT_Time_Out_Lvl_5; 
+
+OA99: NOP   0; 
+END_FUNCTION_BLOCK
+

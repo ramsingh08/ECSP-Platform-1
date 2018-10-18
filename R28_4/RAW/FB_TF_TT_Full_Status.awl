@@ -1,0 +1,254 @@
+FUNCTION_BLOCK "FB_TF_TT_Full_Status"
+TITLE =%version: 0.07 % CN: 40
+//Function:
+//Module to check the percentage of occupation of a carrousel.
+//
+//Description:
+//The percentage of occupation of a carrousel calculation is based on a detection 
+//on one PEC somewhere on the carrousel. When the situation is permanent changing 
+//this module is not able to give precisly the occupied situation of the 
+//carrousel.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 6 juli 2015 10:38:13 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//24690: Mod-His lined up                               nlwwij   25-09-13   0.07
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR6239 Minor modification after emulation test        nlple    12-01-11   0.05
+//Modified Input & output name                          nlHEb    16-09-10   0.04
+//Correct initial value                                 nlHEb    08-09-10   0.03
+//Correct family name                                   nlMRe    19-08-10   0.02
+//Initial Release                                       nlHEb    18-08-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_CFG_Window_Length : INT  := 120;	//CFG: [cm] Window length
+  i_CFG_Full_Error_Time : INT  := 120;	//CFG: [sec] Time how long the error indication becomes active when full warning
+  i_CFG_Full_level_1 : INT  := 10;	//CFG: [%] Carrousel full level 1 reached
+  i_CFG_Full_level_2 : INT  := 25;	//CFG: [%] Carrousel full level 2 reached
+  i_CFG_Full_level_3 : INT  := 75;	//CFG: [%] Carrousel full level 3 reached
+  i_CFG_Full_level_4 : INT  := 90;	//CFG: [%] Carrousel full level 4 reached
+  i_PEC_Latch : BOOL ;	//Latched signal of PEC
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+END_VAR
+VAR_OUTPUT
+  o_ST_Full_level_1 : BOOL ;	//ST: Carrousel full level 1 reached
+  o_ST_Full_level_2 : BOOL ;	//ST: Carrousel full level 2 reached
+  o_ST_Full_level_3 : BOOL ;	//ST: Carrousel full level 3 reached
+  o_ST_Full_level_4 : BOOL ;	//ST: Carrousel full level 4 reached
+  o_ST_Full_Error : BOOL ;	//ST: Carrousel full level 4 error
+END_VAR
+VAR
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB
+  s_Cnt_Total_Carrousel : INT ;	//Counter complete revolution carrousel
+  s_Cnt_Window_available : INT ;	//Counter window available
+  s_Cnt_Number_Of_Windows : INT ;	//Counter number of windows available
+  s_Cnt_Full_Error_Active : INT ;	//Counter before lane full error becomes active
+  s_Space_Available : INT ;	//[cm] Space available on the carrousel
+  s_Percentage_Available : INT ;	//Percentage space available on the carrousel
+  s_Percentage_Occupied : INT ;	//Percentage space occupied on the carrousel
+  s_FP_Reset_Cnt_Win : BOOL ;	//Positive flank detection reset cntr window available
+  s_Done : BOOL ;	//Lenght carousel is available
+  s_Displacement : INT ;	//Displacement [cm] from the PLT DB
+  s_Conveyor_length : INT ;	//CFG: [cm] Conveyor length
+END_VAR
+VAR_TEMP
+  t_Last_Window : INT ;	//Last window counter
+  t_Space_Available : DINT ;	//Space available on the carrousel
+  t_Lenght_Carrousel : DINT ;	//Total length of the carrousel
+  t_Round_Complete : BOOL ;	//Round complete
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      L     DBW    2; //Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      L     DBW   12; 
+      T     #s_Conveyor_length; //Length of the Triplaner
+
+      L     #s_Conveyor_length; //Length of the Triplaner
+      L     0; 
+      <>I   ; 
+      AN    #s_Done; 
+      JCN   AA99; 
+
+      SET   ; // Set bit to indicate thatvalid conveyor length is available
+      =     #s_Done; 
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Revolution counter of carrousel
+
+      L     #s_Cnt_Total_Carrousel; // Counter one revolution of the carrousel
+      L     #s_Displacement; 
+      +I    ; 
+      T     #s_Cnt_Total_Carrousel; 
+
+      L     #s_Cnt_Total_Carrousel; // IF a complete revolution is done
+      L     #s_Conveyor_length; 
+      >=I   ; 
+      A     #s_Done; 
+      =     #t_Round_Complete; // THEN make round complete
+NETWORK
+TITLE =CA : Counter windows available
+
+      AN    #i_PEC_Latch; // IF no items present in the PEC
+      JCN   CA01; 
+      L     #s_Cnt_Window_available; // Countup window available
+      L     #s_Displacement; 
+      +I    ; 
+      T     #s_Cnt_Window_available; 
+
+CA01: NOP   0; 
+
+      A     #i_PEC_Latch; // IF items present in the PEC
+      O     #t_Round_Complete; // OR carrousel round complete
+      FP    #s_FP_Reset_Cnt_Win; 
+      JCN   CA99; 
+
+      L     #s_Cnt_Window_available; // Save last window counted before reset
+      T     #t_Last_Window; 
+
+      L     0; // Reset counter when baggage present
+      T     #s_Cnt_Window_available; 
+
+      L     #t_Last_Window; // IF the last window counted available for one or more items
+      L     #i_CFG_Window_Length; 
+      /I    ; 
+      L     #s_Cnt_Number_Of_Windows; // Then update the counter of windows available
+      +I    ; 
+      T     #s_Cnt_Number_Of_Windows; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA : Occupation carrousel
+
+      A     #t_Round_Complete; // IF round complete 
+      JCN   DA99; 
+
+// Update warning 
+      L     #s_Cnt_Number_Of_Windows; // Number of windows available on the carrousel
+      L     #i_CFG_Window_Length; // Lenght of one window
+      *I    ; 
+      T     #s_Space_Available; // Total space free for items
+
+// Calculation percentage free
+      L     #s_Space_Available; 
+      L     100; 
+      *I    ; 
+      T     #t_Space_Available; 
+
+      L     #s_Conveyor_length; 
+      T     #t_Lenght_Carrousel; 
+
+      L     #t_Space_Available; 
+      L     #t_Lenght_Carrousel; 
+      /D    ; 
+      T     #s_Percentage_Available; // Percentage free
+
+      L     100; 
+      L     #s_Percentage_Available; 
+      -I    ; 
+      T     #s_Percentage_Occupied; // Percentage occupied
+
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_4; 
+      >=I   ; 
+      S     #o_ST_Full_level_4; // Determine if full level 4 is reached
+      R     #o_ST_Full_level_3; 
+      R     #o_ST_Full_level_2; 
+      R     #o_ST_Full_level_1; 
+      JC    DA01; 
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_3; 
+      >=I   ; 
+      S     #o_ST_Full_level_3; // Determine if full level 3 is reached
+      R     #o_ST_Full_level_4; 
+      R     #o_ST_Full_level_2; 
+      R     #o_ST_Full_level_1; 
+      JC    DA01; 
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_2; 
+      >=I   ; 
+      S     #o_ST_Full_level_2; // Determine if full level 2 is reached
+      R     #o_ST_Full_level_4; 
+      R     #o_ST_Full_level_3; 
+      R     #o_ST_Full_level_1; 
+      JC    DA01; 
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_1; 
+      >=I   ; 
+      =     #o_ST_Full_level_1; // Determine if full level 1 is reached
+      SET   ; 
+      R     #o_ST_Full_level_4; 
+      R     #o_ST_Full_level_3; 
+      R     #o_ST_Full_level_2; 
+
+DA01: L     0; // Reset counters
+      T     #s_Cnt_Total_Carrousel; 
+      T     #s_Cnt_Number_Of_Windows; 
+      T     #s_Cnt_Window_available; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Error full indication
+//When the carousel reached Level-4 after the configure time 
+//"#i_CFG_Full_Error_Time" Generate the Alarm "#o_ST_Full_Error".
+      A     #o_ST_Full_Error; // IF full error active
+      AN    #o_ST_Full_level_4; // AND no lane full
+      A     #i_CMD_Reset; // AND reset
+      JCN   EA01; 
+      R     #o_ST_Full_Error; // Reset of the full status error
+
+      L     #i_CFG_Full_Error_Time; //Load timer
+      T     #s_Cnt_Full_Error_Active; 
+
+// Pre-set of the blockage timer
+EA01: AN    #o_ST_Full_level_4; // IF no lane full
+      JCN   EA02; 
+      L     #i_CFG_Full_Error_Time; 
+      T     #s_Cnt_Full_Error_Active; // THEN preset full error active counter
+
+// Countdown of blockage timer
+EA02: A     #o_ST_Full_level_4; // IF lane full active
+      A     "M_OS_/1.0_sec."; 
+      JCN   EA04; 
+      L     #s_Cnt_Full_Error_Active; 
+      L     1; // THEN countdown counter
+      -I    ; 
+      T     #s_Cnt_Full_Error_Active; 
+      JPZ   EA03; 
+      L     0; // IF negative THEN keep counter to zero 
+EA03: T     #s_Cnt_Full_Error_Active; 
+
+// Evaluation of blockage timer
+EA04: L     #i_CFG_Full_Error_Time; 
+      L     0; // IF pre-set value <> 0   
+      <>I   ; //THEN full error detection is enabled  
+      A(    ; 
+      L     #s_Cnt_Full_Error_Active; 
+      L     0; 
+      <=I   ; // AND full error active counter is elapsed
+      )     ; 
+      A     #o_ST_Full_level_4; // AND lane full
+      S     #o_ST_Full_Error; // THEN set output full error
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,115 @@
+FUNCTION_BLOCK "FB_Height_Check"
+TITLE =%version: 0.06 % CN: 30
+//Function:
+//Height Check Object 
+//
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 6 juli 2015 10:27:06 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR11547 Mofified init value Avaiable_IO & Safety_OK   nlHdL    08-11-12   0.05
+//CR5188 Name change of IO Available to Available IO    nlHdL    15-09-10   0.04
+//CR5188 Updated to Coding conventions                  nlHdL    15-09-10   0.03
+//Modified as per new status defination                 insmahi  23-07-10   0.02
+//Initial version                                       insmahi  13-07-10   0.01
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_CFG_Delay_On_Filter : INT ;	//CFG: [cm] Delay on leading edge of product (flap filter)
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_IO_NOT_PEC_Height : BOOL ;	//HW: Height signal of photo electric cell (TRUE= no product) 
+  i_PB_IO_Reset_Height_Chk : BOOL ;	//HW: Push Button Reset Height Check
+END_VAR
+VAR_OUTPUT
+  o_IO_SL : BOOL ;	//HW: Light that indicates error 
+  o_ST_Height_Error : BOOL ;	//ST: Baggage item too high
+END_VAR
+VAR
+  s_Cnt_Delay_On : INT ;	//Counter for delay-on
+  s_Displacement : INT ;	//Displacement [cm] from the PLT DB
+  s_Heightcheck_PEC : BOOL ;	//Heightcheck PEC signal after flap filtering (delay-on)
+  s_Delay_On_Done : BOOL ;	//Delay-on done
+  s_Section_Run : BOOL ;	//Section Run signal from the PLT DB
+  s_Height_Check_Error : BOOL ;	//Height check error detected
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB and section data
+
+      OPN   #i_DB_PLT; // Open tracking DB
+
+      L     DBW    2; //Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      A     DBX   10.1; //Read the section run signal of the PLT DB.
+      =     #s_Section_Run; 
+NETWORK
+TITLE =BA: Flap Filtering Delay On handling.
+//To overrule the influence of flaps, the delay ON used. 
+//On-delay pre-set is adjustable through input parameter. 
+//If a value of 0 is pre-set, the PEC signal will follow the input immediately. 
+//This function uses displacement for the countdown of the delay. 
+//         
+//                           +--------------------------+                  
+//  PEC ---------------------+                          +-----------------        
+//                                                       
+//                                                       
+//                                                     
+//                            <--------->                             
+//                             delay ON  +--------------+
+//  PEC Flap_Filter ---------------------+              +---------
+//
+      A     #i_IO_NOT_PEC_Height; // IF PEC Not blocked
+      JCN   BA01; 
+      L     #i_CFG_Delay_On_Filter; 
+      T     #s_Cnt_Delay_On; // THEN pre-set counter on-Delay 
+BA01: NOP   0; 
+      AN    #i_IO_NOT_PEC_Height; // IF height PEC blocked Countdown delay 
+      JCN   BA99; 
+      L     #s_Cnt_Delay_On; // Load delay-on counter value
+      L     #s_Displacement; // Load displacement of previous scan cycle
+      -I    ; 
+      T     #s_Cnt_Delay_On; // THEN delay counter := delay counter -diaplacement
+      JPZ   BA02; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+BA02: T     #s_Cnt_Delay_On; 
+BA99: L     #s_Cnt_Delay_On; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Delay_On_Done; // Delay-on done
+
+      A     #s_Delay_On_Done; // PEC delay-on done
+      AN    #i_IO_NOT_PEC_Height; // AND PEC is blocked
+      =     #s_Heightcheck_PEC; // THEN assign PEC Flap Filter
+
+NETWORK
+TITLE =CA: Height check Error
+
+      A     #i_PB_IO_Reset_Height_Chk; // Reset error
+      A     #i_IO_NOT_PEC_Height; // AND Height detection PEC is not blocked
+      ON    #i_Available_IO; // OR IO not available 
+      R     #s_Height_Check_Error; // Reset the height check error
+
+      A     #i_CMD_Enable; // Enable
+      A     #s_Heightcheck_PEC; // AND Height detection PEC is blocked
+      A     #s_Section_Run; // AND Section is running
+      A     #i_Available_IO; // AND IO available
+      S     #s_Height_Check_Error; // THEN Set the Height check Error
+NETWORK
+TITLE =DA: Indication and Detailed status
+
+      A     #s_Height_Check_Error; // Height check error
+      =     #o_IO_SL; // Indication
+      =     #o_ST_Height_Error; // Detailed status
+END_FUNCTION_BLOCK
+

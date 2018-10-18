@@ -1,0 +1,287 @@
+FUNCTION_BLOCK "FB_DAT_BPI_Stats"
+TITLE =%version: 0.10 %  CN: 40
+//Function:
+//Read all statisticals and send the statistical message.
+//
+//Description:
+//Read local Event DB and filter all messages with the statistical id (2000).
+//All avilable statisticals are placed in the statistical message value.
+//When the first statistical is found, the header of the message is filled.
+//When the complete DB is scanned, the message is finished with the number of 
+//statisticals and placed in the FIFO Send DB.
+//For every handled statistical, the bit "Handled by BPI Stat" is set.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:35:23 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.10
+//22327: Statisticals must be send spread over the hour nlHdL    06-01-15   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//15170: Changed BTI to BTD for 4 digit Area num        nlHdL    13-08-13   0.02
+//Initial Version based on version 0.06 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Local_Buffer : BLOCK_DB ;	//Data Structure: Local Buffer DB
+  i_PLC_FIFO_DB : BLOCK_DB ;	//Data structure: PLC FIFO DB
+END_VAR
+VAR
+  s_Entries_Used : INT ;	//Number ot the entries used in the Local HLC DB
+  s_Next_Message_to_Read : INT  := 1;	//Next Message wich is going to be read
+  s_Adres_Next_Message : INT ;	//Calculated addres of next record
+  s_Message_Value : INT ;	//Value for the statisticals
+  s_PLC_FIFO_DB_Num : INT ;	//Number of the PLC FIFO DB for messages
+  s_First_Stat_Mesage_Seen : BOOL ;	//The is the first statistical of the message is seen
+  s_Number_Of_Statisticals : INT ;	//Number of the statisticals seen and send to BPI.
+  s_Msg_Statistical : "UDT_Msg_Statistics";	
+  s_Return_Blkmv : INT ;	//Return value for moving to DB_Outgong_Msgs
+  s_Return_FIFO : WORD ;	//Return value for moving to FIFO DB
+  s_MessageID : INT ;	//Message ID from the event DB
+  s_Return_Blkmv_StartTime : INT ;	//Return value of block move starttime
+END_VAR
+VAR_TEMP
+  t_HLC_DB_Num : INT ;	//Number of the Local HLC DB
+  t_Ret_Val_Int : INT ;	//Return value, not used
+  t_Base_Address : DWORD ;	//Relative address mask
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read local PLC DB number and HLC DB
+
+      TAR2  ; // Load 'base address register' 
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_Base_Address; // 'relative address'-mask
+
+      OPN   #i_PLC_FIFO_DB; // Load DB PLC FIFO to get DB number
+      L     DBNO; 
+      T     #s_PLC_FIFO_DB_Num; 
+
+      OPN   #i_Local_Buffer; // Opn local HLC buffer DB
+      L     DBNO; 
+      T     #t_HLC_DB_Num; 
+
+      L     DBW    0; // Load number of entries used in Local HLC DB
+      T     #s_Entries_Used; // Transfer to temporery
+
+      L     0; 
+      T     #s_Number_Of_Statisticals; 
+NETWORK
+TITLE =BA: Read statisticals and generate the message
+
+      L     1; // Start with the first record
+      T     #s_Next_Message_to_Read; 
+
+      L     #s_Entries_Used; // Check if there are messages to send
+      L     0; 
+      <>I   ; 
+      JCN   BA99; 
+
+BA01: L     #s_Next_Message_to_Read; // Load next record number
+      L     1; // Take begin of record
+      -I    ; 
+      L     6; // Multiply by record length
+      *I    ; 
+      L     4; // Add header length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      T     #s_Adres_Next_Message; 
+      LAR1  ; // Load to static and AR1
+
+      L     DBW [AR1,P#0.0]; // Load Value of the message 
+      T     #s_Message_Value; 
+
+      L     DBW [AR1,P#2.0]; 
+      T     #s_MessageID; 
+
+      L     #s_MessageID; 
+      L     2100; 
+      <I    ; 
+      JCN   BA10; // Skip if no statistical found > 2100
+
+      L     #s_MessageID; 
+      L     2000; 
+      >=I   ; 
+      JCN   BA10; // Skip if no statistical found > 2000
+
+      AN    #s_First_Stat_Mesage_Seen; 
+      JCN   BA02; 
+
+// Load current time in message
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := #s_Msg_Statistical.EventTime);
+
+// Place the Area, Zone and Section ID in the message.
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     #s_Msg_Statistical.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     #s_Msg_Statistical.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     #s_Msg_Statistical.EquipmentID; // Transfer to outgoing messages
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Msg_Statistical.EventTime,
+           RET_VAL                  := #s_Return_Blkmv_StartTime,
+           DSTBLK                   := #s_Msg_Statistical.DateTimeStart);
+
+      SET   ; 
+      S     #s_First_Stat_Mesage_Seen; 
+
+// Place the statistical in the message
+BA02: L     P##s_Msg_Statistical; 
+      L     #t_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+
+// Increase the number of statisticals that has been seen.
+
+      L     #s_Number_Of_Statisticals; 
+      L     1; 
+      +I    ; 
+      T     #s_Number_Of_Statisticals; 
+
+      L     #s_Number_Of_Statisticals; // Calculate place of the statistical record
+      L     P#4.0; // With the length of an integer
+      *D    ; 
+      L     P#22.0; // Add header offset before data records
+      +D    ; 
+      +AR1  ; // Load to static and AR1
+
+// Determine the message index
+// 2003 > Index = 3 (2003-2000)
+
+      L     #s_MessageID; 
+      L     2000; 
+      -I    ; 
+      T     W [AR1,P#0.0]; 
+
+      L     #s_Message_Value; 
+      T     W [AR1,P#2.0]; 
+
+//Restore to DB_Event
+      L     #s_Adres_Next_Message; // Load adress current message
+      LAR1  ; 
+
+      SET   ; 
+      =     DBX [AR1,P#4.1]; // Set "Handled by BPI Stat" bit
+
+
+BA10: NOP   0; 
+
+      L     #s_Adres_Next_Message; // Load adress current message
+      LAR1  ; // Transfer to AR 1
+
+      L     #s_Next_Message_to_Read; // Increase next message with 1
+      L     1; 
+      +I    ; 
+      T     #s_Next_Message_to_Read; // If next record to read is equal or smaller
+      L     #s_Entries_Used; // then number of messages in DB, than do next message
+      >I    ; 
+      JCN   BA01; 
+
+//If no first message then no send
+      A     #s_First_Stat_Mesage_Seen; 
+      JCN   BA99; 
+
+// If all statisticals are handled, copy number of statisticals in.
+
+      L     #s_Number_Of_Statisticals; 
+      T     #s_Msg_Statistical.Number_of_Stats; 
+
+// copy message to "DB_Outgoing_Msgs"
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Msg_Statistical,
+           RET_VAL                  := #s_Return_Blkmv,
+           DSTBLK                   := "DB_Outgoing_Msgs".Statisticals);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Statisticals,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #s_PLC_FIFO_DB_Num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #s_Return_FIFO);
+
+      CLR   ; 
+      =     #s_First_Stat_Mesage_Seen; 
+
+      L     0; 
+      T     #s_Number_Of_Statisticals; 
+      T     #s_Msg_Statistical.Data[1].STAT_ID; 
+      T     #s_Msg_Statistical.Data[2].STAT_ID; 
+      T     #s_Msg_Statistical.Data[3].STAT_ID; 
+      T     #s_Msg_Statistical.Data[4].STAT_ID; 
+      T     #s_Msg_Statistical.Data[5].STAT_ID; 
+      T     #s_Msg_Statistical.Data[6].STAT_ID; 
+      T     #s_Msg_Statistical.Data[7].STAT_ID; 
+      T     #s_Msg_Statistical.Data[8].STAT_ID; 
+      T     #s_Msg_Statistical.Data[9].STAT_ID; 
+      T     #s_Msg_Statistical.Data[10].STAT_ID; 
+      T     #s_Msg_Statistical.Data[11].STAT_ID; 
+      T     #s_Msg_Statistical.Data[12].STAT_ID; 
+      T     #s_Msg_Statistical.Data[13].STAT_ID; 
+      T     #s_Msg_Statistical.Data[14].STAT_ID; 
+      T     #s_Msg_Statistical.Data[15].STAT_ID; 
+      T     #s_Msg_Statistical.Data[16].STAT_ID; 
+      T     #s_Msg_Statistical.Data[17].STAT_ID; 
+      T     #s_Msg_Statistical.Data[18].STAT_ID; 
+      T     #s_Msg_Statistical.Data[19].STAT_ID; 
+      T     #s_Msg_Statistical.Data[20].STAT_ID; 
+      T     #s_Msg_Statistical.Data[1].STAT_Value; 
+      T     #s_Msg_Statistical.Data[2].STAT_Value; 
+      T     #s_Msg_Statistical.Data[3].STAT_Value; 
+      T     #s_Msg_Statistical.Data[4].STAT_Value; 
+      T     #s_Msg_Statistical.Data[5].STAT_Value; 
+      T     #s_Msg_Statistical.Data[6].STAT_Value; 
+      T     #s_Msg_Statistical.Data[7].STAT_Value; 
+      T     #s_Msg_Statistical.Data[8].STAT_Value; 
+      T     #s_Msg_Statistical.Data[9].STAT_Value; 
+      T     #s_Msg_Statistical.Data[10].STAT_Value; 
+      T     #s_Msg_Statistical.Data[11].STAT_Value; 
+      T     #s_Msg_Statistical.Data[12].STAT_Value; 
+      T     #s_Msg_Statistical.Data[13].STAT_Value; 
+      T     #s_Msg_Statistical.Data[14].STAT_Value; 
+      T     #s_Msg_Statistical.Data[15].STAT_Value; 
+      T     #s_Msg_Statistical.Data[16].STAT_Value; 
+      T     #s_Msg_Statistical.Data[17].STAT_Value; 
+      T     #s_Msg_Statistical.Data[18].STAT_Value; 
+      T     #s_Msg_Statistical.Data[19].STAT_Value; 
+      T     #s_Msg_Statistical.Data[20].STAT_Value; 
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

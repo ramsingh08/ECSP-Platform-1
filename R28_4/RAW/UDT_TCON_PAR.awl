@@ -1,0 +1,33 @@
+TYPE "UDT_TCON_PAR"
+TITLE =Connection Parameters for TCON
+AUTHOR : SIMATIC
+FAMILY : COMM
+NAME : TCON_PAR
+VERSION : 2.1
+
+
+  STRUCT 	
+   block_length : WORD  := W#16#40;	//Length of the UDT (64 bytes)
+   id : WORD ;	//Reference to this connection (valuerange: W#16#0001 to W#16#FFFF)
+   connection_type : BYTE  := B#16#1;	//B#16#11: TCP/IP native; B#16#12: ISO on TCP; B#16#01: TCP/IP native
+   active_est : BOOL ;	//FALSE: passive connection establishment; TRUE: active connection establishment
+   local_device_id : BYTE  := B#16#2;	//Allowed values: B#16#0, B#16#2, B#16#3, B#16#5. See online help.
+   local_tsap_id_len : BYTE  := B#16#2;	//Used length of the parameter local_tsap_id
+   rem_subnet_id_len : BYTE ;	//Unused; must be B#16#00
+   rem_staddr_len : BYTE ;	//Meaning of parameter rem_staddr: B#16#00: is irrelevant; B#16#04: valid address
+   rem_tsap_id_len : BYTE ;	//Used length of the parameter rem_tsap_id
+   next_staddr_len : BYTE ;	//Used length of the parameter next_staddr
+   local_tsap_id : ARRAY  [1 .. 16 ] OF //Depending on parameter connection_type: local port no. / local TSAP-ID
+   BYTE  := B#16#0;	
+   rem_subnet_id : ARRAY  [1 .. 6 ] OF //Unused; must be B#16#00
+   BYTE  := B#16#0;	
+   rem_staddr : ARRAY  [1 .. 6 ] OF //IP address of the remote connection end point, e. g. 192.168.0002.0003
+   BYTE  := B#16#0;	
+   rem_tsap_id : ARRAY  [1 .. 16 ] OF //Depending on connection type: remote port no. / remote TSAP-ID
+   BYTE  := B#16#0;	
+   next_staddr : ARRAY  [1 .. 6 ] OF //Depending on local_device_id: rack / slot no. of the associated CP / irrelevant
+   BYTE  := B#16#9;	
+   spare : WORD ;	//Unused; must be W#16#0000
+  END_STRUCT ;	
+END_TYPE
+

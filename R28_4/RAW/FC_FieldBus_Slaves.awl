@@ -1,0 +1,25 @@
+FUNCTION "FC_FieldBus_Slaves" : VOID
+TITLE =%version: 0.01 % CN: 60
+//Function:
+//All fieldbus slaves are placed here. 
+//
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:46:38 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//PR21677 Initial revision                              nlMRe    18-12-14   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =#Insert# //Insertion point code generator
+//The generated source will be added overhere.
+END_FUNCTION
+

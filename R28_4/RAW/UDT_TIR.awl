@@ -1,0 +1,39 @@
+TYPE "UDT_TIR"
+TITLE =%version: 0.04 % CN: 10 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:05:47 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.01 ECS-P TTT       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   ID : INT ;	//ID number
+   Status_Empty : BOOL ;	//Status is "Empty"
+   Status_Loaded : BOOL ;	//Status is "Loaded"
+   Status_Loaded_High : BOOL ;	//Status is "Loaded High"
+   Class_SBT : BOOL ;	//Kind is SBT
+   Class_OBT : BOOL ;	//Kind is OBT
+   Contour_Fault : BOOL ;	//Contour Fault
+   Inspection_Required : BOOL ;	//Inspection is required for the tub
+   Duplicate_ID : BOOL ;	//Tubs detected in the area with an identical ID
+   Last_IDO_No_Data : BOOL ;	//No tub ID read by the last IDO
+   Spare_1_1 : BOOL ;	//Spare_3_1
+   Spare_1_2 : BOOL ;	//Spare_3_2
+   Spare_1_3 : BOOL ;	//Spare_3_3
+   Spare_1_4 : BOOL ;	//Spare_3_4
+   Spare_1_5 : BOOL ;	//Spare_3_5
+   Spare_1_6 : BOOL ;	//Spare_3_6
+   Spare_1_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

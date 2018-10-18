@@ -1,0 +1,84 @@
+FUNCTION_BLOCK "FB_FieldBus_Slave"
+TITLE =%version: 0.01 % CN: 31
+//Function:
+//This block collects the information of a Fieldbus slave and assembles a 
+//status set of this information.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:29:46 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//Added init block based on 0.03 FB_DP_Slave_Cabinet    nlHdL    18-04-14   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus module is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus module has an error
+  i_ASI_1_Delta_Error : BOOL ;	//Actual and Configurated ASI slaves are not the same on ASI network 1
+  i_ASI_2_Delta_Error : BOOL ;	//Actual and Configurated ASI slaves are not the same on ASI network 2
+END_VAR
+VAR_OUTPUT
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave has on error
+  o_ST_ASI_1_Delta_Error : BOOL ;	//ST: Error ASI slaves are not the same on ASI network 1
+  o_ST_ASI_2_Delta_Error : BOOL ;	//ST: Error ASI slaves are not the same on ASI network 2  
+END_VAR
+VAR
+  s_ER_Slave_Not_Prsnt : BOOL ;	//Error Slave not present
+  s_ER_Slave_Error : BOOL ;	//Error Slave error
+  s_ER_ASI_1_Delta_Err : BOOL ;	//Error ASI 1 Slave error
+  s_ER_ASI_2_Delta_Err : BOOL ;	//Error ASI 2 Slave error  
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Reset and detect errors
+//Manage detailed statuses
+      O     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #s_ER_Slave_Not_Prsnt; 
+      R     #s_ER_Slave_Error; 
+      R     #s_ER_ASI_1_Delta_Err; 
+      R     #s_ER_ASI_2_Delta_Err; 
+
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO; 
+      S     #s_ER_Slave_Not_Prsnt; 
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO; 
+      S     #s_ER_Slave_Error; 
+
+      A     #i_ASI_1_Delta_Error; 
+      A     #i_Available_IO; 
+      S     #s_ER_ASI_1_Delta_Err; 
+
+      A     #i_ASI_2_Delta_Error; 
+      A     #i_Available_IO; 
+      S     #s_ER_ASI_2_Delta_Err; 
+
+NETWORK
+TITLE =BA: Write to output
+
+      A     #s_ER_Slave_Not_Prsnt; 
+      =     #o_ST_FieldB_NotPrsnt; 
+
+      A     #s_ER_Slave_Error; 
+      =     #o_ST_FieldB_Error; 
+
+      A     #s_ER_ASI_1_Delta_Err; 
+      =     #o_ST_ASI_1_Delta_Error; 
+
+      A     #s_ER_ASI_2_Delta_Err; 
+      =     #o_ST_ASI_2_Delta_Error; 
+
+END_FUNCTION_BLOCK
+

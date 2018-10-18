@@ -1,0 +1,42 @@
+TYPE "UDT_HCO_Status"
+TITLE =%version: 0.07 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:02:12 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//22051: Added third ASI slave for PEC in status HCO    nltny    17-02-15   0.07
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//PR12868 Add second ASI slave for SLC in status HCO    nlple    05-03-13   0.05
+//CR6232 Update according CTCL                          nlple    10-01-11   0.04
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.03 
+//CR5188 Updated to Coding conventions                  nlHdL    15-09-10   0.02
+//Initial revision                                      insmahi  27-07-10   0.01
+FAMILY : General
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Started : BOOL ;	//Started
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Height_Error : BOOL ;	//Baggage item too high
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   ASI_Error : BOOL ;	//ASI slave error
+   ASI_2_Not_Prsnt : BOOL ;	//ASI slave 2 not present
+   ASI_2_Error : BOOL ;	//ASI slave 2 error
+   ASI_3_Not_Prsnt : BOOL ;	//ASI slave 3 not present
+   ASI_3_Error : BOOL ;	//ASI slave 3 error
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

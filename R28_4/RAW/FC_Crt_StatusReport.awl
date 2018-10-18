@@ -1,0 +1,458 @@
+FUNCTION "FC_Crt_StatusReport" : VOID
+TITLE =%version: 0.06 % CN: 32
+//Function:
+//Prepare and send message 'StatusReport'
+//                                                                        
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: dinsdag 21 juli 2015 15:59:29 %
+//              %release: VI_CONV/RA_Dev_15.3 %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7551: StatusReport causes PLC stop wrong length check nlHdL    21-07-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//21235: PLC stopped with more than 512 status records  nlHdL    26-05-15   0.05
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.03
+//18060: Update messages ID's for Vibes 3.2             nlHdL    19-02-14   0.02
+//Initial Version                                       nlHdL    04-11-13   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_ComponentNum : INT ;	//Number of Component accoording Status Index, 0 = All
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_General_Status_Word : WORD ;	//General Status of active component
+  t_Detailed_Status1 : BYTE ;	//Detailed Status of active component
+  t_Detailed_Status2 : BYTE ;	//Detailed Status of active component
+  t_Record_Data_length : INT ;	//Record Length for the type DB
+  t_NumberOfComponent : INT ;	//Number of components preset in DB_Status_Index
+  t_ComponentNumber : INT ;	//Active component number
+  t_Adress_Status : INT ;	//Adress of component into DB_Status
+  t_DB_nr_Type : INT ;	//Type DB number from DB_Status_Index
+  t_Pointer_Msgs : DWORD ;	//Pointer adress to current position into the messages
+  t_Loop_Cnt : INT ;	//Loop counter 
+  t_Start_AdressMsgs : INT ;	//Start adress calculated from outgoing messages
+  t_ID_Component : DWORD ;	//ID of active component from DB_Status_Index
+  t_All_CompSend : BOOL ;	//All component requested for the messages
+  t_Previous_CompNum : INT ;	//Previous component number
+  t_Length_Msgs_DB : INT ;	//Length of messages
+  t_available_comp : INT ;	//Number of components available within DB
+  t_Length_check : INT ;	//Check Length position with length DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      L     "DB_Snd_StatusMsg".StatusReport.Body.MessageLength; 
+      L     0; 
+      ==I   ; 
+      JCN   AA99; 
+
+      T     "DB_Snd_StatusMsg".StatusReport.Body.Number_Component; 
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Calculated number of components
+
+      A     "M_First_Scan"; 
+      BEC   ; 
+
+      SET   ; 
+      R     #t_All_CompSend; 
+
+      L     0; 
+      T     #t_Previous_CompNum; 
+
+      L     #i_ComponentNum; 
+      T     #t_ComponentNumber; 
+      L     0; 
+      ==I   ; 
+      JCN   BA01; 
+
+      =     #t_All_CompSend; 
+
+      L     0; 
+      T     "DB_Snd_StatusMsg".StatusReport.Body.MessageLength; 
+      T     "DB_Snd_StatusMsg".StatusReport.Body.Number_Component; 
+
+      L     1; 
+      T     #t_ComponentNumber; 
+
+BA01: CALL "FC_Any_To_Adress" (
+           i_ANY_Data               := "DB_Snd_StatusMsg".StatusReport.Body.Component[1].GeneralStatus,
+           o_Adress                 := #t_Start_AdressMsgs);
+
+      OPN   "DB_Snd_StatusMsg"; 
+      L     DBLG; 
+      T     #t_Length_Msgs_DB; 
+
+      L     "DB_Snd_StatusMsg".StatusReport.Body.MessageLength; 
+      L     0; 
+      ==I   ; 
+      JCN   BA03; 
+
+      L     #t_Start_AdressMsgs; 
+      T     #t_Loop_Cnt; 
+
+//Clear the previous messages
+BA02: L     #t_Loop_Cnt; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     0; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Loop_Cnt; 
+      L     2; 
+      +I    ; 
+      T     #t_Loop_Cnt; 
+
+      L     #t_Loop_Cnt; 
+      L     #t_Length_Msgs_DB; 
+      <I    ; 
+      JC    BA02; 
+
+BA03: OPN   "DB_Status_Index"; 
+      L     DBLG; 
+      L     16; //Length of Index record
+      /I    ; 
+      T     #t_NumberOfComponent; 
+
+      L     #t_ComponentNumber; 
+      L     #t_NumberOfComponent; 
+      >I    ; 
+      BEC   ; //Component Number not valid, Out of range
+
+      L     0; 
+      T     #t_DB_nr_Type; 
+
+      L     0; 
+      L     "DB_Snd_StatusMsg".StatusReport.Body.MessageLength; 
+      <I    ; 
+      JCN   BA04; 
+
+      L     4; 
+      -I    ; //Minus Footer
+
+//Pointer to last messages length to add this component to the messages
+      L     #t_Start_AdressMsgs; 
+      -I    ; 
+
+BA04: T     #t_Pointer_Msgs; 
+NETWORK
+TITLE =CA:Check if component can be added to the message DB
+
+      OPN   "DB_Status_Index"; 
+      L     16; 
+      L     #t_ComponentNumber; 
+      *D    ; 
+      L     4; 
+      -D    ; 
+      SLD   3; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_DB_nr_Type; 
+
+//Determine the length of the type DB
+      OPN   DB [#t_DB_nr_Type]; 
+      L     DBLG; 
+      L     32; 
+      /I    ; 
+      T     #t_Record_Data_length; 
+
+      OPN   "DB_Snd_StatusMsg"; 
+      L     "DB_Snd_StatusMsg".StatusReport.Body.MessageLength; 
+      L     #t_Record_Data_length; 
+      +I    ; 
+      L     8; // 8 Bytes for ID
+      +I    ; 
+      L     2; // 2 Bytes for GS status
+      +I    ; 
+      T     #t_Length_check; 
+
+      L     #t_Length_Msgs_DB; 
+      L     #t_Length_check; 
+      <=I   ; 
+      BEC   ; // Send DB is full   
+
+NETWORK
+TITLE =DA: Retrieve the General Status
+// add length check
+      OPN   "DB_General_Status"; 
+      L     DBLG; 
+      L     2; 
+      /I    ; 
+      T     #t_available_comp; 
+      L     #t_ComponentNumber; 
+      <I    ; 
+      BEC   ; 
+
+
+DA01: L     #t_ComponentNumber; 
+      L     2; 
+      *D    ; 
+      L     2; 
+      -D    ; 
+      SLD   3; 
+      LAR1  ; 
+
+      OPN   "DB_General_Status"; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_General_Status_Word; 
+
+//Write into messages
+      OPN   "DB_Snd_StatusMsg"; 
+      L     #t_Start_AdressMsgs; 
+      L     #t_Pointer_Msgs; 
+      +I    ; 
+      T     #t_Length_check; 
+
+      SLD   3; 
+      LAR1  ; 
+
+      L     #t_General_Status_Word; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Pointer_Msgs; 
+      L     2; 
+      +I    ; 
+      T     #t_Pointer_Msgs; 
+NETWORK
+TITLE =EA: Retrieve the ID 
+
+      OPN   "DB_Status_Index"; 
+      L     16; 
+      L     #t_ComponentNumber; 
+      *D    ; 
+      L     8; 
+      -D    ; 
+      SLD   3; 
+      LAR1  ; 
+      L     DBD [AR1,P#0.0]; 
+      T     #t_ID_Component; 
+
+//Write Number of detailedStatus
+      OPN   "DB_Snd_StatusMsg"; 
+      L     #t_Start_AdressMsgs; 
+      L     #t_Pointer_Msgs; 
+      +D    ; 
+      T     #t_Length_check; 
+
+      SLD   3; 
+      LAR1  ; 
+
+      L     #t_ID_Component; 
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     DBW [AR1,P#0.0]; //     "DB_Outgoing_Msgs".StatusReport.Component1.ID.Area
+
+      L     #t_ID_Component; 
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     DBW [AR1,P#2.0]; //     "DB_Outgoing_Msgs".StatusReport.Component1.ID.Zone
+
+      L     #t_ID_Component; 
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     DBW [AR1,P#4.0]; //     "DB_Outgoing_Msgs".StatusReport.Component1.ID.Section
+
+      L     #t_Pointer_Msgs; 
+      L     6; 
+      +I    ; 
+      T     #t_Pointer_Msgs; 
+
+NETWORK
+TITLE =FA: Retrieve the Detailed Status
+
+      OPN   "DB_Status_Index"; 
+      L     16; 
+      L     #t_ComponentNumber; 
+      *D    ; 
+      L     4; 
+      -D    ; 
+      SLD   3; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_DB_nr_Type; 
+      L     DBW [AR1,P#2.0]; 
+      T     #t_Adress_Status; 
+
+//Determine the length of the type DB
+      OPN   DB [#t_DB_nr_Type]; 
+      L     DBLG; 
+      T     #t_DB_nr_Type; 
+      L     32; 
+      /I    ; 
+      T     #t_Record_Data_length; 
+
+//Write Number of detailedStatus
+      OPN   "DB_Snd_StatusMsg"; 
+      L     #t_Start_AdressMsgs; 
+      L     #t_Pointer_Msgs; 
+      +I    ; 
+      T     #t_Length_check; 
+
+      SLD   3; 
+      LAR1  ; 
+
+      L     #t_Record_Data_length; 
+      T     DBW [AR1,P#0.0]; //     "DB_Outgoing_Msgs".StatusReport.Component1.NumberOfDetailedStatus
+      L     #t_Adress_Status; 
+      +I    ; 
+      T     #t_Record_Data_length; 
+
+      L     #t_Pointer_Msgs; 
+      L     2; 
+      +I    ; 
+      T     #t_Pointer_Msgs; 
+
+FA02: OPN   "DB_Status"; 
+      L     #t_Adress_Status; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Detailed_Status1; 
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Detailed_Status2; 
+
+
+//Write into messages
+      OPN   "DB_Snd_StatusMsg"; 
+      L     #t_Start_AdressMsgs; 
+      L     #t_Pointer_Msgs; 
+      +I    ; 
+      T     #t_Length_check; 
+
+      SLD   3; 
+      LAR1  ; 
+
+      L     #t_Detailed_Status1; 
+      T     DBB [AR1,P#0.0]; 
+      L     #t_Detailed_Status2; 
+      T     DBB [AR1,P#1.0]; 
+
+      L     #t_Pointer_Msgs; 
+      L     2; 
+      +I    ; 
+      T     #t_Pointer_Msgs; 
+
+      L     #t_Adress_Status; 
+      L     2; 
+      +I    ; 
+      T     #t_Adress_Status; 
+
+      L     #t_Record_Data_length; 
+      <I    ; 
+      JC    FA02; 
+//Loop DS Status
+
+//Loop Component
+      L     #t_ComponentNumber; 
+      L     1; 
+      +I    ; 
+      T     #t_ComponentNumber; 
+
+      L     #t_ComponentNumber; 
+      L     #t_NumberOfComponent; 
+      <=I   ; 
+      A     #t_All_CompSend; 
+      JC    DA01; //loop
+
+      L     #t_ComponentNumber; 
+      L     1; 
+      -I    ; 
+      T     #t_ComponentNumber; 
+
+NETWORK
+TITLE =GA: Write messageID
+
+      AN    "M_Comm_Degraded"; // When in degraded mode
+      JCN   GA02; 
+
+      L     301; // When NOT in degraded mode
+      T     "DB_Snd_StatusMsg".StatusReport.Body.MessageID; 
+
+      JU    GA99; 
+
+GA02: L     1301; // When in degraded mode
+      T     "DB_Snd_StatusMsg".StatusReport.Body.MessageID; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Snd_StatusMsg".StatusReport.Body.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Snd_StatusMsg".StatusReport.Body.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Snd_StatusMsg".StatusReport.Body.EquipmentID; // Transfer to outgoing messages
+
+NETWORK
+TITLE =IA: Number of components and activated messages
+
+      AN    #t_All_CompSend; 
+      JCN   IA01; 
+
+      L     1; 
+      L     "DB_Snd_StatusMsg".StatusReport.Body.Number_Component; 
+      +I    ; 
+      JU    IA02; 
+
+IA01: L     #t_ComponentNumber; 
+      L     "DB_Snd_StatusMsg".StatusReport.Body.Number_Component; 
+      +I    ; 
+IA02: T     "DB_Snd_StatusMsg".StatusReport.Body.Number_Component; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Snd_StatusMsg".StatusReport.Body.MessageTime);
+
+//Set message length and trigger the send function
+      L     #t_Start_AdressMsgs; 
+      L     #t_Pointer_Msgs; 
+      +I    ; 
+      L     4; //Footer 4 Bytes
+      +I    ; 
+      T     "DB_Snd_StatusMsg".StatusReport.Body.MessageLength; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Snd_StatusMsg".StatusReport.Body.EventTime);
+
+NETWORK
+TITLE =JA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+
+END_FUNCTION
+

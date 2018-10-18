@@ -1,0 +1,40 @@
+TYPE "UDT_SVD_MVD_Cmd"
+TITLE =%version: 0.05 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:05:25 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//PR6719 Init value auto as TRUE                        nlHdL    03-10-11  0.03
+//PR6738 Rework interface with OP                       nlple    04-04-11  0.02
+//PR6738 Initial revision                               nlple    01-04-10  0.01
+FAMILY : General
+
+
+  STRUCT 	
+   Auto : BOOL  := TRUE;	//Auto
+   Manual : BOOL ;	//Manual
+   Fixed_Up : BOOL ;	//Semi automatic fixed Up
+   Fixed_Down : BOOL ;	//Semi automatic fixed Down
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Manual_Up : BOOL ;	//Switch motor manual up
+   Manual_Down : BOOL ;	//Switch motor manual down
+   Manual_TRS1_Start : BOOL ;	//TRS1 conveyor manual run start
+   Manual_TRS1_Stop : BOOL ;	//TRS1 conveyor manual run stop
+   Manual_TRS2_Start : BOOL ;	//TRS2 conveyor manual run start
+   Manual_TRS2_Stop : BOOL ;	//TRS2 conveyor manual run stop
+   Manual_TRS3_Start : BOOL ;	//TRS3 conveyor manual run start
+   Manual_TRS3_Stop : BOOL ;	//TRS3 conveyor manual run stop
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

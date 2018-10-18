@@ -1,0 +1,62 @@
+TYPE "UDT_Msg_PackageRep"
+TITLE =%version: 0.07 % CN: 12
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:12:36 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//23155: TIR in message for tubtrace                    nlHdL    24-04-15   0.07
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.06
+//18032: package instr & package rep update             nlHdL    14-02-14   0.04
+//15824: CN number of messages UDT change to 12         nlHdL    30-09-13   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.04 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   body : STRUCT 	
+    EventTime : DATE_AND_TIME ;	
+    MessageID : INT  := 209;	//Message ID: PackageReport
+    AreaID : INT ;	//Area ID number
+    ZoneID : INT ;	//Zone ID number
+    EquipmentID : INT ;	//Section/Object ID number
+    LIC : INT ;	//LIC
+    ScreeningLevel : STRUCT 	
+     Process_1 : INT ;	//Level of Screening
+     Process_2 : INT ;	//Level of Screening
+     Process_3 : INT ;	//Level of Screening
+     Process_4 : INT ;	//Level of Screening
+     Process_5 : INT ;	//Level of Screening
+    END_STRUCT ;	
+    ScreeningResult : STRUCT 	
+     Process_1 : INT ;	//Result of Screening (1 = Cleared, 2 = Uncleared, 3 = No decision)
+     Process_2 : INT ;	//Result of Screening (1 = Cleared, 2 = Uncleared, 3 = No decision)
+     Process_3 : INT ;	//Result of Screening (1 = Cleared, 2 = Uncleared, 3 = No decision)
+     Process_4 : INT ;	//Result of Screening (1 = Cleared, 2 = Uncleared, 3 = No decision)
+     Process_5 : INT ;	//Result of Screening (1 = Cleared, 2 = Uncleared, 3 = No decision)
+    END_STRUCT ;	
+    ScreeningID : ARRAY  [1 .. 10 ] OF //What is the ID of the bag for screening
+    CHAR ;	
+    ScanResult : STRUCT 	//Result of Barcode Scanner
+     LPN1 : ARRAY  [1 .. 10 ] OF //License Plate Number #1
+     CHAR ;	
+     LPN2 : ARRAY  [1 .. 10 ] OF //License Plate Number #2
+     CHAR ;	
+     LPN3 : ARRAY  [1 .. 10 ] OF //License Plate Number #3
+     CHAR ;	
+    END_STRUCT ;	
+    Route_Result : STRUCT 	
+     Route_Result : INT ;	//Result of Route (1 = Arrived, 2 = Cancel, 3 = StoreResult)
+     Location : INT ;	//The location (destination) of the result
+    END_STRUCT ;	
+    BIR : "UDT_BIR";	//Information Record of registered bag
+    TIR : "UDT_TIR";	//Transport Information Record
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

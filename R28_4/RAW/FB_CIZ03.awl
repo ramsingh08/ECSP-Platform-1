@@ -1,0 +1,1051 @@
+FUNCTION_BLOCK "FB_CIZ03"
+TITLE =%version: 0.06 % CN: 60 
+//Function:
+//Control a Check-In Zone which consists of two 2-directional conveyors and one 
+//single direction conveyor: 
+//a Check-in Weight Section TRS1 and a regular 2 directional Check-in Label
+//Section TRS2 and a 1-directional conveyor: Dispatch Section TRS3.
+//
+//Description:
+//TRS1 and TRS2 have two PECs each, one on each side of the conveyor. 
+//TRS3 has one PEC, only on the EOS.
+//
+//View from above (conveyor):
+//                                                          
+//        |                                        | 
+//    +---+----------------------------------------+---+
+//    |   |              ---- Forward ---->        |   |              
+//    |   |                                        |   |  
+//    |   |              <--- Reverse -----        |   |  
+//    +---+----------------------------------------+---+
+//        |                                        |                            
+//        ^                                        ^  
+// PEC upstream                            PEC downstream
+// 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:45:19 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//22267: TRS3 Handover and preset PEC not correct       nlHdL    30-06-15   0.06
+//23975: Change names of PEC1 to EOS and PEC2 to SOS    nlHdL    17-06-15   0.05
+//22645: Increase delay off for EOS PEC for induct.     nlHdL    26-01-15   0.04
+//21553: EOS and SOS PEC CI conveyors changed           nlHdL    23-12-14   0.03
+//21919: PEC3 Latch to control for correct induct run   nlHdL    02-12-14   0.02
+//Initial version                                       nlSdW    11-12-13   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_CIZ_Sett";	//Data Structure: Setting Record
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_ASI_NotPrsnt_1 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_1 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_2 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_2 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_3 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_3 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_4 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_4 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_5 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_5 : BOOL ;	//ASI has an Error
+  i_CFG_Double_Dispatch : BOOL ;	//CFG: Double dipatch enabled
+  i_KS_IO_Desk_On : BOOL ;	//HW: Key-Switch check-in desk switched on
+  i_PB_IO_Label : BOOL ;	//HW: Push Button Label
+  i_PB_IO_Dispatch : BOOL ;	//HW: Push Button Dispatch
+  i_PB_IO_Reverse : BOOL ;	//HW: Push Button Reverse
+  i_KS_IO_Automatic_Mode : BOOL ;	//HW: Cabinet key switch automatic mode
+  i_Ind_DB_PLT : BLOCK_DB ;	//Data Structure: Induct Position DataBlock (Dummy for induct)
+  i_Ind_DB_PLT_Merge : BLOCK_DB ;	//Data Structure: Induct Position DataBlock (Dummy for induct)
+  i_DB_Reservation : BLOCK_DB ;	//Data Structure: reservation DataBlock
+  i_CFG_Induct_Number_FWD : INT ;	//CFG: Induct reference number in forward
+  i_CFG_Induct_Number_REV : INT ;	//CFG: Induct reference number in reverse
+  i_CFG_PEC_Offset : INT ;	//CFG: [cm] PEC offset of update PEC trigger
+  i_TRS1_Setting : "UDT_TRS_Bas2dir_Sett";	//Data Structure: Setting Record TRS1
+  i_TRS1_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS1_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+  i_TRS1_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS1_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS1_IO_NOT_PEC_1 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS1_IO_NOT_PEC_2 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS1_IO_CON_OK : BOOL ;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor switched on)
+  i_TRS1_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_TRS2_Setting : "UDT_TRS_Bas2dir_Sett";	//Data Structure: Setting Record TRS2
+  i_TRS2_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS2_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS2
+  i_TRS2_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS2_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS2_IO_NOT_PEC_1 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS2_IO_NOT_PEC_2 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS2_IO_CON_OK : BOOL ;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor swiched on)
+  i_TRS2_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_TRS3_Setting : "UDT_TRS_Bas1dir_Sett";	//Data Structure: Setting Record TRS3
+  i_TRS3_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS3_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS3
+  i_TRS3_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS3_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS3_IO_NOT_PEC : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS3_IO_CON_OK : BOOL ;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor swiched on)
+  i_TRS3_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Die_Forward : BOOL ;	//CIZ request CLZ to die forward
+  o_ST_ASI1_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_1 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI2_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_2 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI3_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_3 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI4_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_4 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI5_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_5 : BOOL ;	//ST: ASI slave has an error
+  o_ST_Child_Detection : BOOL ;	//ST: Child detection error
+  o_ST_Length_Check : BOOL ;	//ST: Length check error
+  o_ST_Desk_Disabled : BOOL ;	//ST: Key switch in automatic mode
+  o_IO_SL_Desk_On : BOOL ;	//HW: Signal light Check-in desk switched on (lit) or check-in has error (blinkin
+  o_IO_SL_Check_Error : BOOL ;	//HW: Signal light length check error
+  o_IO_SL_Dispatch_Button : BOOL ;	//HW: Signal light dispatch button
+  o_TRS1_IO_MTR_FWD : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS1_IO_MTR_REV : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS1_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS1_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS1_ST_Started : BOOL ;	//ST: Started
+  o_TRS1_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS1_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS1_ST_Not_Auto : BOOL ;	//ST: The motor is reporting not Automatic
+  o_TRS1_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS1_ST_PEC1_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS1_ST_PEC2_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS1_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS2_IO_MTR_FWD : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS2_IO_MTR_REV : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS2_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS2_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS2_ST_Started : BOOL ;	//ST: Started
+  o_TRS2_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS2_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS2_ST_Not_Automatic : BOOL ;	//ST  The motor is reporting not automatic
+  o_TRS2_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS2_ST_PEC1_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS2_ST_PEC2_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS2_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS3_IO_MTR : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS3_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS3_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS3_ST_Started : BOOL ;	//ST: Started
+  o_TRS3_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS3_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS3_ST_Not_Automatic : BOOL ;	//ST  The motor is reporting not automatic
+  o_TRS3_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS3_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS3_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+END_VAR
+VAR
+  s_FB_Induct : "FB_Induct";	//Block call static FB_Induct
+  s_FB_CIZ_Control : "FB_CIZ03_Control";	//Block call static FB_CIZ_Control
+  s_CIZ_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS1_FB_EQP_Switch_Dir : "FB_EQP_Switch_Dir";	//Block call static FB_EQP_Switch_Dir
+  s_TRS1_FB_PEC_2Dir_EOS : "FB_EQP_PEC_2Dir";	//Block call statis FB_EQP_PEC_2Dir
+  s_TRS1_FB_PEC_2Dir_SOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC_2Dir
+  s_TRS1_FB_EQP_Lean : "FB_EQP_Lean";	//Block call static FB_EQP_Lean
+  s_TRS1_HW_MTR : "FB_HW_MTR_2DIR_MS";	//Block call static FB_HW_MTR
+  s_TRS1_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS2_FB_EQP_Switch_Dir : "FB_EQP_Switch_Dir";	//Block call static FB_EQP_Switch_Dir
+  s_TRS2_FB_PEC_2Dir_EOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS2_FB_PEC_2Dir_SOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS2_FB_EQP_Lean : "FB_EQP_Lean";	//Block call static FB_EQP_Lean
+  s_TRS2_HW_MTR : "FB_HW_MTR_2DIR_MS";	//Block call static FB_HW_MTR
+  s_TRS2_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS3_FB_EQP_PEC : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS3_FB_EQP_Lean : "FB_EQP_Lean";	//Block call static FB_EQP_Lean
+  s_TRS3_HW_MTR : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR
+  s_TRS3_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_Tl_Offset_01_FW : INT ;	//Position of the physical PEC in forward
+  s_Tl_Offset_01_RV : INT ;	//Position of the physical PEC in reverse
+  s_Tl_Offset_01 : INT ;	//Position of the physical PEC
+  s_Tl_Offset_02_FW : INT ;	//Position of the physical PEC in forward
+  s_Tl_Offset_02_RV : INT ;	//Position of the physical PEC in reverse
+  s_Tl_Offset_02 : INT ;	//Position of the physical PEC
+  s_Tl_Offset_03 : INT ;	//Position of the physical PEC
+  s_TRS1_Req_MTR_Run : BOOL ;	//CIZ control Request motor run
+  s_TRS1_Req_MTR_Rev : BOOL ;	//CIZ control Request motor reverse
+  s_TRS1_MTR_Run : BOOL ;	//Request motor run
+  s_TRS1_CMD_Rev : BOOL ;	//Request motor reverse
+  s_TRS1_NOT_CMD_Rev : BOOL ;	//Not command reverse
+  s_TRS1_OS_Dir_Chng : BOOL ;	//One shot direction change
+  s_TRS1_HW_Req_Halt : BOOL ;	//HW request halt
+  s_TRS1_Ext_Req_Halt : BOOL ;	//Internal request halt
+  s_TRS1_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS1_Not_Automatic : BOOL ;	//Not automatic status report from hardware layer
+  s_TRS2_Req_MTR_Run : BOOL ;	//CIZ control Request motor reverse
+  s_TRS2_Req_MTR_Rev : BOOL ;	//CIZ control Request motor run
+  s_TRS2_MTR_Run : BOOL ;	//Request motor reverse
+  s_TRS2_CMD_Rev : BOOL ;	//Request motor run
+  s_TRS2_NOT_CMD_Rev : BOOL ;	//Not command reverse
+  s_TRS2_OS_Dir_Chng : BOOL ;	//One shot direction change
+  s_TRS2_HW_Req_Halt : BOOL ;	//HW request halt
+  s_TRS2_Ext_Req_Halt : BOOL ;	//Internal resquest halt
+  s_TRS2_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS2_Not_Automatic : BOOL ;	//Not automatic status report from hardware layer
+  s_TRS3_Req_MTR_Run : BOOL ;	//CIZ control Request motor reverse
+  s_TRS3_MTR_Run : BOOL ;	//Request motor reverse
+  s_TRS3_HW_Req_Halt : BOOL ;	//HW request halt
+  s_TRS3_Ext_Req_Halt : BOOL ;	//Internal resquest halt
+  s_TRS3_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS3_Not_Automatic : BOOL ;	//Not automatic status report from hardware layer
+  s_CIZ_Active : BOOL ;	//CIZ Activated
+  s_CIZ_Inactive : BOOL ;	//CIZ Deactivated
+  s_CIZ_Error : BOOL ;	//Error active in CIZ
+  s_TRS1_Error : BOOL ;	//Error active TRS1
+  s_TRS2_Error : BOOL ;	//Error active TRS2
+  s_TRS3_Error : BOOL ;	//Error active TRS2
+  s_Request_Induct : BOOL ;	//Request to induct bag in window
+  s_TRS1_HandOver_Busy : BOOL ;	//TRS1 Handover is busy
+  s_TRS2_HandOver_Busy : BOOL ;	//TRS1 Handover is busy
+  s_TRS3_Dispatch_Busy : BOOL ;	//TRS2 Dispatch action is busy
+  s_TRS3_Ready_To_Induct : BOOL ;	//TRS2 is ready to induct
+  s_Child_Detection_Set : BOOL ;	//Child detection error is set
+  s_Reset_PEC_Blockage : BOOL ;	//Reset command for PEC error when key switch is of
+  s_PEC_Blockage_PEC1 : BOOL ;	//PEC blockage error from PEC equipment block
+  s_PEC_Defect_PEC3 : BOOL ;	//PEC defect/blockage after child detection
+  s_Merge_Operational : BOOL ;	//Merge section is operational
+  s_TRS1_PEC_Latch_PEC_1 : BOOL ;	//PEC Latch signal from PLT DB
+  s_TRS2_PEC_Latch_PEC_1 : BOOL ;	//PEC Latch signal from PLT DB
+  s_TRS3_PEC_Latch_PEC : BOOL ;	//PEC Latch signal from PLT DB
+  s_ST_Child_Detect : BOOL ;	//Status  Child detection error
+  s_TRS3_MTR_Not_Run : BOOL ;	//Motor TRS3 not running
+  s_MTR_TRS3_Not_Run_1sec : BOOL ;	//Motor TRS3 not running for more than 1 second
+  s_MTR_Counter_value : INT ;	//Counter value of motor not running counter
+  s_Init_Sequencer : BOOL ;	//Initialize sequencer
+  s_FN_KS_IO_Desk_On : BOOL ;	//Flank negative of i_KS_IO_Desk_On
+  s_Req_Dis_Induct : BOOL ;	//Request disable induct
+END_VAR
+VAR_TEMP
+  t_Preset_PEC_Latch : BOOL ;	//Preset the PEC latch signal
+  t_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  t_TRS3_IO_NOT_PEC : BOOL ;	//PEC downstream TRS2
+  t_TRS_Start_Up_Dist : INT ;	//Calculated start-up distance = run-out / 2
+  t_TRS1_Setting : "UDT_EQP_Basic_Sett";	//Temp setting TRS1 basic offset
+  t_TRS2_Setting : "UDT_EQP_Basic_Sett";	//Temp setting TRS2 basic offset
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine PLT DB's
+//Determine when merge section is operational
+      OPN   #i_Ind_DB_PLT_Merge; 
+
+      A     DBX   10.5; // Retrieve section operational signal
+      =     #s_Merge_Operational; 
+
+      OPN   #i_TRS1_DB_PLT; 
+      AN    DBX   10.7; 
+      =     #s_TRS1_PEC_Latch_PEC_1; // Retrieve PEC latch signal
+
+      OPN   #i_TRS2_DB_PLT; 
+      AN    DBX   10.7; 
+      =     #s_TRS2_PEC_Latch_PEC_1; // Retrieve PEC latch signal
+
+      OPN   #i_TRS3_DB_PLT; 
+      AN    DBX   10.7; 
+      =     #s_TRS3_PEC_Latch_PEC; // Retrieve PEC latch signal
+
+      A     #i_Available_IO; 
+      A     #i_TRS1_IO_CON_OK; 
+      A     #i_TRS2_IO_CON_OK; 
+      A     #i_TRS3_IO_CON_OK; 
+      AN    #i_ASI_NotPrsnt_1; 
+      AN    #i_ASI_Error_1; 
+      AN    #i_ASI_NotPrsnt_2; 
+      AN    #i_ASI_Error_2; 
+      AN    #i_ASI_NotPrsnt_3; 
+      AN    #i_ASI_Error_3; 
+      AN    #i_ASI_NotPrsnt_4; 
+      AN    #i_ASI_Error_4; 
+      AN    #i_ASI_NotPrsnt_5; 
+      AN    #i_ASI_Error_5; 
+      =     #t_Available_IO; 
+NETWORK
+TITLE =BA: Handle electrical input statuses
+//Some errors and statuses are coming directly from electrical inputs.
+//If the IO becomes not available, those inputs must be ignored, to avoid 
+//(as consequence of) all kind of meaningless status changes, which are indicated 
+//to HMI.
+      O     #i_CMD_Reset; // Reset ASI errors
+      ON    #i_Available_IO; 
+      R     #o_ST_ASI1_NotPrsnt; 
+      R     #o_ST_ASI_Error_1; 
+      R     #o_ST_ASI2_NotPrsnt; 
+      R     #o_ST_ASI_Error_2; 
+      R     #o_ST_ASI3_NotPrsnt; 
+      R     #o_ST_ASI_Error_3; 
+      R     #o_ST_ASI4_NotPrsnt; 
+      R     #o_ST_ASI_Error_4; 
+      R     #o_ST_ASI5_NotPrsnt; 
+      R     #o_ST_ASI_Error_5; 
+
+
+      A     #i_ASI_NotPrsnt_1; // Set ASI PBB errors
+      A     #i_Available_IO; 
+      S     #o_ST_ASI1_NotPrsnt; 
+
+      A     #i_ASI_Error_1; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_1; 
+
+      A     #i_ASI_NotPrsnt_2; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI2_NotPrsnt; 
+
+      A     #i_ASI_Error_2; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_2; 
+
+      A     #i_ASI_NotPrsnt_3; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI3_NotPrsnt; 
+
+      A     #i_ASI_Error_3; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_3; 
+
+      A     #i_ASI_NotPrsnt_4; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI4_NotPrsnt; 
+
+      A     #i_ASI_Error_4; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_4; 
+
+      A     #i_ASI_NotPrsnt_5; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI5_NotPrsnt; 
+
+      A     #i_ASI_Error_5; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_5; 
+
+NETWORK
+TITLE =CA: KS automatic mode
+//LAD!
+//Determine when the key switch of the cabinet is in automatic mode
+      AN    #i_KS_IO_Automatic_Mode; // If KS in 'Automatic' mode
+      A     #t_Available_IO; // AND IO available
+      AN    #o_ST_ASI2_NotPrsnt; // AND ASI PBB present
+      AN    #o_ST_ASI_Error_2; // AND ASI PBB not in error
+      =     #o_ST_Desk_Disabled; // THEN KS in 'Automatic' position
+NETWORK
+TITLE =DA: CIZ active
+//LAD!
+//Determine when the CIZ is activated
+      A     #i_KS_IO_Desk_On; 
+      AN    #o_ST_Desk_Disabled; 
+      AN    #s_CIZ_Error; 
+      AN    #s_TRS1_Error; 
+      AN    #s_TRS2_Error; 
+      AN    #s_TRS3_Error; 
+      A     #t_Available_IO; 
+      A     #i_Safety_OK; 
+      A     #o_TRS1_ST_Started; 
+      A     #o_TRS2_ST_Started; 
+      A     #o_TRS3_ST_Started; 
+      S     #s_CIZ_Active; 
+      R     #s_CIZ_Inactive; 
+NETWORK
+TITLE =EA: CIZ inactive
+//LAD!
+//Determine when the CIZ is deactivated
+      A(    ; 
+      ON    #i_KS_IO_Desk_On; 
+      )     ; 
+      AN    #s_TRS3_Dispatch_Busy; 
+      O     #o_ST_Desk_Disabled; 
+      ON    #t_Available_IO; 
+      ON    #i_Safety_OK; 
+      ON    #o_TRS1_ST_Started; 
+      ON    #o_TRS2_ST_Started; 
+      S     #s_CIZ_Inactive; 
+      R     #s_CIZ_Active; 
+NETWORK
+TITLE =FA: Reset signal for PEC blockage errors
+
+      O     #i_KS_IO_Desk_On; 
+      FN    #s_FN_KS_IO_Desk_On; 
+      O     #i_CMD_Reset; 
+      =     #s_Reset_PEC_Blockage; 
+
+NETWORK
+TITLE =GA: Induct block call
+
+      NOP   0; 
+
+      AN    #s_TRS3_Ready_To_Induct; 
+      =     #s_Req_Dis_Induct; 
+
+      CALL #s_FB_Induct (
+           i_Setting                := #i_Setting.Induct,
+           i_DB_PLT                 := #i_Ind_DB_PLT,
+           i_DB_PLT_Merge           := #i_Ind_DB_PLT_Merge,
+           i_DB_Reservation         := #i_DB_Reservation,
+           i_DB_Event               := "DB_Event_Zone",
+           i_CFG_PEC_Offset         := #i_CFG_PEC_Offset,
+           i_CFG_Search_Window      := 0,
+           i_CFG_Gap_Length         := 0,
+           i_CFG_Induct_Number_FWD  := #i_CFG_Induct_Number_FWD,
+           i_CFG_Induct_Number_REV  := #i_CFG_Induct_Number_REV,
+           i_CFG_Run_Out_Dist_Gap   := 0,
+           i_Ext_Req_Dis_Induct     := #s_Req_Dis_Induct,
+           o_Start_Induct           := #s_Request_Induct);
+
+NETWORK
+TITLE =HA: Equipment calls for TRS1 belt
+
+      NOP   0; 
+
+      CALL #s_TRS1_FB_EQP_Switch_Dir (
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS2_DB_PLT,
+           i_CMD_Reverse            := #s_TRS1_Req_MTR_Rev,
+           o_OS_Direction_Change    := #s_TRS1_OS_Dir_Chng,
+           o_CMD_MTR_Reverse        := #s_TRS1_CMD_Rev);
+
+// Equipment layer PEC EOS
+      CALL #s_TRS1_FB_PEC_2Dir_EOS (
+           i_Setting                := #i_TRS1_Setting.PEC_1_2D,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 200,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 0,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS1_IO_NOT_PEC_1,
+           i_CFG_Preset_PEC_Latch   := TRUE,
+           i_Eqp_Available_IO       := #t_Available_IO,
+           i_CMD_Reset              := #s_Reset_PEC_Blockage,
+           i_Disable_Update_Funct   := #s_TRS1_CMD_Rev,
+           o_PEC_Position           := #s_Tl_Offset_01_FW,
+           o_ST_PEC_Blk             := #o_TRS1_ST_PEC1_Blk);
+
+      AN    #s_TRS1_CMD_Rev; 
+      =     #s_TRS1_NOT_CMD_Rev; 
+
+// Equipment layer PEC SOS
+      CALL #s_TRS1_FB_PEC_2Dir_SOS (
+           i_Setting                := #i_TRS1_Setting.PEC_2_2D,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 0,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS1_IO_NOT_PEC_2,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_Available_IO,
+           i_CMD_Reset              := #s_Reset_PEC_Blockage,
+           i_Disable_Update_Funct   := #s_TRS1_NOT_CMD_Rev,
+           o_PEC_Position           := #s_Tl_Offset_01_RV,
+           o_ST_PEC_Blk             := #o_TRS1_ST_PEC2_Blk);
+
+//Calculated standard start-up for section
+      L     #i_TRS1_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+      A     #s_CIZ_Error; 
+      O     #s_TRS1_Error; 
+      O(    ; 
+      A     #s_TRS2_Error; 
+      A     #s_TRS1_HandOver_Busy; 
+      )     ; 
+      O     #s_TRS1_OS_Dir_Chng; 
+      O     #s_TRS1_HW_Req_Halt; 
+      =     #s_TRS1_Ext_Req_Halt; 
+
+      AN    #s_TRS1_CMD_Rev; 
+      JCN   HA01; 
+
+      L     #s_Tl_Offset_01_FW; 
+      T     #s_Tl_Offset_01; 
+
+//Load offset forward
+      L     #i_TRS1_Setting.Basic_FWD.Offset; 
+      T     #t_TRS1_Setting.Offset; 
+
+HA01: A     #s_TRS1_CMD_Rev; 
+      JCN   HA02; 
+
+      L     #s_Tl_Offset_01_RV; 
+      T     #s_Tl_Offset_01; 
+
+//Load offset reverse
+      L     #i_TRS1_Setting.Basic_REV.Offset; 
+      T     #t_TRS1_Setting.Offset; 
+
+HA02: CALL #s_TRS1_FB_EQP_Lean (
+           i_ID_Section             := #i_TRS1_ID,
+           i_Setting                := #t_TRS1_Setting,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS1_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS1_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_Tl_Offset_01,
+           i_Available_IO           := #t_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Run            := #s_TRS1_Req_MTR_Run,
+           i_Ext_Req_Halt           := #s_TRS1_Ext_Req_Halt,
+           i_OS_Direction_Change    := #s_TRS1_OS_Dir_Chng,
+           o_External               := #o_TRS1_EXT_Outputs,
+           o_Motor_Run              := #s_TRS1_MTR_Run,
+           o_ST_Items               := #o_TRS1_ST_Items,
+           o_ST_Running             := #o_TRS1_ST_Running,
+           o_ST_Started             := #o_TRS1_ST_Started,
+           o_ST_Request_Halt        := #o_TRS1_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS1_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS1_Ready_To_Restart);
+
+      CALL #s_TRS1_HW_MTR (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #i_Available_IO,
+           i_IO_MS_Automatic_Mode   := #i_KS_IO_Automatic_Mode,
+           i_IO_NOT_THO             := #i_TRS1_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_TRS1_MTR_Run,
+           i_CMD_Req_Motor_Reverse  := #s_TRS1_CMD_Rev,
+           o_IO_MTR_Fwd             := #o_TRS1_IO_MTR_FWD,
+           o_IO_MTR_Rev             := #o_TRS1_IO_MTR_REV,
+           o_ST_MS_Not_Automatic    := #s_TRS1_Not_Automatic,
+           o_ST_THO                 := #o_TRS1_ST_THO,
+           o_Req_Halt               := #s_TRS1_HW_Req_Halt);
+
+// Combine not automatic status and connector not OK input
+// to not automatic status output
+      O     #i_CMD_Reset; // Reset Errors
+      ON    #i_Available_IO; // OR not IO available
+      O     #o_ST_ASI2_NotPrsnt; // OR ASI LMS not present
+      O     #o_ST_ASI_Error_2; // OR ASI LMS in error
+      R     #o_TRS1_ST_Not_Auto; // Reset Not automatic for TRS1
+
+      A     #s_TRS1_Not_Automatic; // AND not automatic from HW
+      ON    #i_TRS1_IO_CON_OK; // OR motor is not connected
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI2_NotPrsnt; // AND ASI LMS present
+      AN    #o_ST_ASI_Error_2; // AND ASI LMS not in error
+      S     #o_TRS1_ST_Not_Auto; // Set Not automatic for TRS1
+
+      CALL #s_TRS1_FB_DAT (
+           i_ID_Section             := #i_TRS1_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_SAC  := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =IA: Equipment calls for TRS2 belt
+
+      NOP   0; 
+
+      CALL #s_TRS2_FB_EQP_Switch_Dir (
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_PLT_UpStr           := #i_TRS1_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS3_DB_PLT,
+           i_CMD_Reverse            := #s_TRS2_Req_MTR_Rev,
+           o_OS_Direction_Change    := #s_TRS2_OS_Dir_Chng,
+           o_CMD_MTR_Reverse        := #s_TRS2_CMD_Rev);
+
+// Equipment layer PEC EOS
+      CALL #s_TRS2_FB_PEC_2Dir_EOS (
+           i_Setting                := #i_TRS2_Setting.PEC_1_2D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 150,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 0,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_PEC_1,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_Available_IO,
+           i_CMD_Reset              := #s_Reset_PEC_Blockage,
+           i_Disable_Update_Funct   := #s_TRS2_CMD_Rev,
+           o_PEC_Position           := #s_Tl_Offset_02_FW,
+           o_ST_PEC_Blk             := #o_TRS2_ST_PEC1_Blk);
+
+      AN    #s_TRS2_CMD_Rev; 
+      =     #s_TRS2_NOT_CMD_Rev; 
+
+// Equipment layer PEC SOS
+      CALL #s_TRS2_FB_PEC_2Dir_SOS (
+           i_Setting                := #i_TRS2_Setting.PEC_2_2D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 0,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_PEC_2,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_Available_IO,
+           i_CMD_Reset              := #s_Reset_PEC_Blockage,
+           i_Disable_Update_Funct   := #s_TRS2_NOT_CMD_Rev,
+           o_PEC_Position           := #s_Tl_Offset_02_RV,
+           o_ST_PEC_Blk             := #o_TRS2_ST_PEC2_Blk);
+
+//Calculated standard start-up for section
+      L     #i_TRS2_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+      A     #s_CIZ_Error; 
+      O     #s_TRS2_Error; 
+      O(    ; 
+      A     #s_TRS1_Error; 
+      A     #s_TRS1_HandOver_Busy; 
+      )     ; 
+      O     #s_TRS2_OS_Dir_Chng; 
+      O     #s_TRS2_HW_Req_Halt; 
+      =     #s_TRS2_Ext_Req_Halt; 
+
+      AN    #s_TRS2_CMD_Rev; 
+      JCN   IA01; 
+
+      L     #s_Tl_Offset_02_FW; 
+      T     #s_Tl_Offset_02; 
+
+//Load offset forward
+      L     #i_TRS2_Setting.Basic_FWD.Offset; 
+      T     #t_TRS2_Setting.Offset; 
+
+IA01: A     #s_TRS2_CMD_Rev; 
+      JCN   IA02; 
+
+      L     #s_Tl_Offset_02_RV; 
+      T     #s_Tl_Offset_02; 
+
+//Load offset reverse
+      L     #i_TRS2_Setting.Basic_REV.Offset; 
+      T     #t_TRS2_Setting.Offset; 
+
+IA02: CALL #s_TRS2_FB_EQP_Lean (
+           i_ID_Section             := #i_TRS2_ID,
+           i_Setting                := #t_TRS2_Setting,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS2_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS2_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_Tl_Offset_02,
+           i_Available_IO           := #t_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Run            := #s_TRS2_Req_MTR_Run,
+           i_Ext_Req_Halt           := #s_TRS2_Ext_Req_Halt,
+           i_OS_Direction_Change    := #s_TRS2_OS_Dir_Chng,
+           o_External               := #o_TRS2_EXT_Outputs,
+           o_Motor_Run              := #s_TRS2_MTR_Run,
+           o_ST_Items               := #o_TRS2_ST_Items,
+           o_ST_Running             := #o_TRS2_ST_Running,
+           o_ST_Started             := #o_TRS2_ST_Started,
+           o_ST_Request_Halt        := #o_TRS2_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS2_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS2_Ready_To_Restart);
+
+      CALL #s_TRS2_HW_MTR (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #i_Available_IO,
+           i_IO_MS_Automatic_Mode   := #i_KS_IO_Automatic_Mode,
+           i_IO_NOT_THO             := #i_TRS2_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_TRS2_MTR_Run,
+           i_CMD_Req_Motor_Reverse  := #s_TRS2_CMD_Rev,
+           o_IO_MTR_Fwd             := #o_TRS2_IO_MTR_FWD,
+           o_IO_MTR_Rev             := #o_TRS2_IO_MTR_REV,
+           o_ST_MS_Not_Automatic    := #s_TRS2_Not_Automatic,
+           o_ST_THO                 := #o_TRS2_ST_THO,
+           o_Req_Halt               := #s_TRS2_HW_Req_Halt);
+
+// Combine not automatic status and connector not OK input
+// to not automatic status output
+      O     #i_CMD_Reset; // Reset Errors
+      ON    #i_Available_IO; // OR not IO available
+      O     #o_ST_ASI3_NotPrsnt; // OR ASI LMS not present
+      O     #o_ST_ASI_Error_3; // OR ASI LMS in error
+      R     #o_TRS2_ST_Not_Automatic; // Reset Not automatic for TRS2
+
+      A     #s_TRS2_Not_Automatic; // AND not automatic from HW
+      ON    #i_TRS2_IO_CON_OK; // OR motor is not connected
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI3_NotPrsnt; // AND ASI LMS present
+      AN    #o_ST_ASI_Error_3; // AND ASI LMS not in error
+      S     #o_TRS2_ST_Not_Automatic; // Set Not automatic for TRS2
+
+      CALL #s_TRS2_FB_DAT (
+           i_ID_Section             := #i_TRS2_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_SAC  := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =IA: Equipment calls for TRS3 belt
+
+      NOP   0; 
+
+//PEC will be discard in case of child detection (happend when CIZ is inactive)
+      A     #s_CIZ_Inactive; 
+      A     #s_Merge_Operational; 
+      O     #i_TRS3_IO_NOT_PEC; 
+      =     #t_TRS3_IO_NOT_PEC; 
+
+      AN    #s_TRS3_MTR_Run; 
+      =     #s_TRS3_MTR_Not_Run; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_TRS3_MTR_Not_Run,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 10,
+           i_Current_Value          := #s_MTR_Counter_value,
+           o_Status                 := #s_MTR_TRS3_Not_Run_1sec,
+           o_Current_Value          := #s_MTR_Counter_value);
+
+      A     #s_MTR_TRS3_Not_Run_1sec; // If the motor of TRS3 is not running for more than 1 second
+      =     #t_Preset_PEC_Latch; // Preset PEC latch signal
+
+//End-Of-Section PEC
+      CALL #s_TRS3_FB_EQP_PEC (
+           i_Setting                := #i_TRS3_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 150,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 12,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_Preset_PEC_Latch,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #t_TRS3_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #t_Available_IO,
+           i_CMD_Reset              := #s_Reset_PEC_Blockage,
+           o_PEC_Position           := #s_Tl_Offset_03,
+           o_ST_PEC_Blk             := #s_PEC_Blockage_PEC1);
+
+//Calculated standard start-up for section
+      L     #i_TRS2_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+      A     #s_CIZ_Error; 
+      O     #s_TRS3_Error; 
+      O(    ; 
+      A     #s_TRS2_Error; 
+      A     #s_TRS2_HandOver_Busy; 
+      )     ; 
+      O     #s_TRS3_HW_Req_Halt; 
+      =     #s_TRS3_Ext_Req_Halt; 
+
+
+      CALL #s_TRS3_FB_EQP_Lean (
+           i_ID_Section             := #i_TRS3_ID,
+           i_Setting                := #i_TRS3_Setting.Basic,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_Ind_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS3_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS3_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_Tl_Offset_03,
+           i_Available_IO           := #t_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Run            := #s_TRS3_Req_MTR_Run,
+           i_Ext_Req_Halt           := #s_TRS3_Ext_Req_Halt,
+           o_External               := #o_TRS3_EXT_Outputs,
+           o_Motor_Run              := #s_TRS3_MTR_Run,
+           o_ST_Items               := #o_TRS3_ST_Items,
+           o_ST_Running             := #o_TRS3_ST_Running,
+           o_ST_Started             := #o_TRS3_ST_Started,
+           o_ST_Request_Halt        := #o_TRS3_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS3_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS3_Ready_To_Restart);
+
+      CALL #s_TRS3_HW_MTR (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_Available_IO,
+           i_IO_MS_Automatic_Mode   := #i_KS_IO_Automatic_Mode,
+           i_IO_NOT_THO             := #i_TRS3_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS3_MTR_Run,
+           o_IO_MTR                 := #o_TRS3_IO_MTR,
+           o_ST_MS_Not_Automatic    := #s_TRS3_Not_Automatic,
+           o_ST_THO                 := #o_TRS3_ST_THO);
+
+// Combine not automatic status and connector not OK input
+// to not automatic status output
+      O     #i_CMD_Reset; // Reset Errors
+      ON    #i_Available_IO; // OR not IO available
+      O     #o_ST_ASI5_NotPrsnt; // OR ASI LMS not present
+      O     #o_ST_ASI_Error_5; // OR ASI LMS in error
+      R     #o_TRS3_ST_Not_Automatic; // Reset Not automatic for TRS2
+
+      A     #s_TRS3_Not_Automatic; // AND not automatic from HW
+      ON    #i_TRS3_IO_CON_OK; // OR motor is not connected
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI5_NotPrsnt; // AND ASI LMS present
+      AN    #o_ST_ASI_Error_5; // AND ASI LMS not in error
+      S     #o_TRS3_ST_Not_Automatic; // Set Not automatic for TRS2
+
+      CALL #s_TRS3_FB_DAT (
+           i_ID_Section             := #i_TRS3_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_SAC  := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =JA: CIZ control block call
+//This block contains the manual control of the TRS1 and the dispatch sequence 
+//for inducting on the CLZ.
+      NOP   0; 
+
+      A     #s_CIZ_Error; // If the CIZ has an error
+      O     #s_TRS1_Error; // OR TRS1 has an error
+      O     #s_TRS2_Error; // OR TRS2 has an error
+      O     #s_TRS3_Error; // OR TRS3 has an error
+      =     #s_Init_Sequencer; // Initialize the sequencer and set idle state
+
+      CALL #s_FB_CIZ_Control (
+           i_TRS1_DB_PLT            := #i_TRS1_DB_PLT,
+           i_TRS2_DB_PLT            := #i_TRS2_DB_PLT,
+           i_TRS3_DB_PLT            := #i_TRS3_DB_PLT,
+           i_Event_DB               := "DB_Event_Zone",
+           i_CIZ_Active             := #s_CIZ_Active,
+           i_Request_Induct         := #s_Request_Induct,
+           i_CFG_Double_Dispatch    := #i_CFG_Double_Dispatch,
+           i_KS_IO_Desk_On          := #i_KS_IO_Desk_On,
+           i_PB_IO_Label_Weight     := #i_PB_IO_Label,
+           i_PB_IO_Dispatch         := #i_PB_IO_Dispatch,
+           i_PB_IO_Reverse          := #i_PB_IO_Reverse,
+           i_TRS1_IO_NOT_PEC_Upstrm := #i_TRS1_IO_NOT_PEC_2,
+           i_TRS1_NOT_PEC_Downstr   := #s_TRS1_PEC_Latch_PEC_1,
+           i_TRS2_IO_NOT_PEC_Upstrm := #i_TRS2_IO_NOT_PEC_2,
+           i_TRS2_NOT_PEC_Downstr   := #s_TRS2_PEC_Latch_PEC_1,
+           i_TRS3_NOT_PEC_Downstr   := #s_TRS3_PEC_Latch_PEC,
+           i_Init_Sequencer         := #s_Init_Sequencer,
+           i_Dispatch_Timeout       := 9000,
+           o_TRS1_Req_MTR_Run       := #s_TRS1_Req_MTR_Run,
+           o_TRS1_Req_MTR_Rev       := #s_TRS1_Req_MTR_Rev,
+           o_TRS2_Req_MTR_Run       := #s_TRS2_Req_MTR_Run,
+           o_TRS2_Req_MTR_Rev       := #s_TRS2_Req_MTR_Rev,
+           o_TRS3_Req_MTR_Run       := #s_TRS3_Req_MTR_Run,
+           o_TRS1_HandOver_Busy     := #s_TRS1_HandOver_Busy,
+           o_TRS2_HandOver_Busy     := #s_TRS2_HandOver_Busy,
+           o_TRS3_Dispatch_Busy     := #s_TRS3_Dispatch_Busy,
+           o_TRS3_Ready_To_Induct   := #s_TRS3_Ready_To_Induct,
+           o_ST_Length_Check        := #o_ST_Length_Check,
+           o_IO_SL_Dispatch_Button  := #o_IO_SL_Dispatch_Button);
+
+      CALL #s_CIZ_FB_DAT (
+           i_ID_Section             := #i_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_SAC  := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =KA: Child detection error
+//When the section is inactive, started and the downstream PEC of the dispatch 
+//belt is triggered the child detection is set. The child detection will be 
+//resetted with use of the key switch.
+      A     #s_CIZ_Inactive; 
+      A     #s_Merge_Operational; 
+      AN    #i_TRS3_IO_NOT_PEC; 
+      AN    #o_TRS3_ST_PEC_Blk; 
+      A     #t_Available_IO; 
+      A     #i_Safety_OK; 
+      S     #o_ST_Child_Detection; 
+
+      A     #i_KS_IO_Desk_On; 
+      ON    #t_Available_IO; 
+      R     #o_ST_Child_Detection; 
+NETWORK
+TITLE =LA: PEC defect
+//When a child detection is reset with use of the key switch but the PEC sensor 
+//signal is still false, a PEC defect error will be generated. This prevents that 
+//when the PEC is not working the collector belt stops every time because of a 
+//child detection.
+      A     #i_TRS3_IO_NOT_PEC; 
+      R     #s_Child_Detection_Set; 
+
+      A     #s_Reset_PEC_Blockage; 
+      R     #s_PEC_Defect_PEC3; 
+
+      A     #o_ST_Child_Detection; 
+      S     #s_Child_Detection_Set; 
+
+      A     #s_Child_Detection_Set; 
+      AN    #o_ST_Child_Detection; 
+      AN    #i_TRS3_IO_NOT_PEC; 
+      A     #t_Available_IO; 
+      S     #s_PEC_Defect_PEC3; 
+
+      A     #s_PEC_Blockage_PEC1; 
+      O     #s_PEC_Defect_PEC3; 
+      =     #o_TRS3_ST_PEC_Blk; 
+NETWORK
+TITLE =MA: Desk on status indication light
+//LAD!
+//Indicates when the check-in desk is activated, deactivated or when the check-in 
+//desk is having an error. When the check-in desk has an error the signal light 
+//will indicate this by blinking.
+      A     #t_Available_IO; 
+      A(    ; 
+      O     #s_CIZ_Error; 
+      O     #s_TRS1_Error; 
+      O     #s_TRS2_Error; 
+      O     #s_TRS3_Error; 
+      )     ; 
+      A     "M_System_Clock_1.0_sec."; 
+      O     ; 
+      A     #s_CIZ_Active; 
+      AN    #s_CIZ_Error; 
+      AN    #s_TRS1_Error; 
+      AN    #s_TRS2_Error; 
+      AN    #s_TRS3_Error; 
+      =     #o_IO_SL_Desk_On; 
+NETWORK
+TITLE =NA: Bag length error indication light
+//LAD!
+//Writes the output for the length check signal light.
+      A     #o_ST_Length_Check; 
+      =     #o_IO_SL_Check_Error; 
+NETWORK
+TITLE =OA: Status error CIZ
+//LAD!
+//Collected errors for the CIZ error status
+      ON    #t_Available_IO; 
+      O     #o_ST_ASI1_NotPrsnt; 
+      O     #o_ST_ASI_Error_1; 
+      O     #o_ST_ASI2_NotPrsnt; 
+      O     #o_ST_ASI_Error_2; 
+      O     #o_ST_ASI3_NotPrsnt; 
+      O     #o_ST_ASI_Error_3; 
+      O     #o_ST_ASI4_NotPrsnt; 
+      O     #o_ST_ASI_Error_4; 
+      O     #o_ST_ASI5_NotPrsnt; 
+      O     #o_ST_ASI_Error_5; 
+      O     #o_ST_Child_Detection; 
+      =     #s_CIZ_Error; 
+NETWORK
+TITLE =PA: Status Error TRS1
+//LAD!
+      O     #o_TRS1_ST_PEC1_Blk; 
+      O     #o_TRS1_ST_PEC2_Blk; 
+      O     #o_TRS1_ST_THO; 
+      O     #o_TRS1_ST_Not_Auto; 
+      =     #s_TRS1_Error; 
+NETWORK
+TITLE =QA: Status Error TRS2
+//LAD!
+      O     #o_TRS2_ST_PEC1_Blk; 
+      O     #o_TRS2_ST_PEC2_Blk; 
+      O     #o_TRS2_ST_THO; 
+      O     #o_TRS2_ST_Not_Automatic; 
+      =     #s_TRS2_Error; 
+NETWORK
+TITLE =QA: Status Error TRS3
+//LAD!
+      O     #o_TRS3_ST_PEC_Blk; 
+      O     #o_TRS3_ST_THO; 
+      O     #o_TRS3_ST_Not_Automatic; 
+      =     #s_TRS3_Error; 
+NETWORK
+TITLE =RA: Die forward for collector zone
+//LAD!
+      A(    ; 
+      O     #s_CIZ_Error; 
+      O     #s_TRS3_Error; 
+      )     ; 
+      A(    ; 
+      O     #s_TRS3_Dispatch_Busy; 
+      O     #o_Die_Forward; 
+      )     ; 
+      O     #o_ST_Child_Detection; 
+      A     #t_Available_IO; 
+      =     #o_Die_Forward; 
+NETWORK
+TITLE =SA: Zone signals
+//LAD!
+      O     #s_TRS1_Ready_To_Restart; 
+      O     #s_TRS2_Ready_To_Restart; 
+      O     #s_TRS3_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+END_FUNCTION_BLOCK
+

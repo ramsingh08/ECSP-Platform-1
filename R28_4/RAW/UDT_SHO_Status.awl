@@ -1,0 +1,60 @@
+TYPE "UDT_SHO_Status"
+TITLE =%version: 0.07 % CN: 10 
+//Function:                         
+//Shutter status
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:05:08 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//18159: Add Fire Alarm Status                          nlMLaut  26-03-14   0.07
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//CR7220 Changing SDS in SHO conform JES                nlple    04-07-11   0.05
+//CR6232 Update according CTCL                          nlplr    10-01-11   0.04
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.03 
+//CR5188 Updated to Coding conventions                  nlHdL    15-09-10   0.02
+//Initial revision                                      insmahi  23-07-10   0.01
+//                                 
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Started : BOOL ;	//Started
+   Request_Stop : BOOL ;	//Request Stop
+   Request_Halt : BOOL ;	//Request Halt
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   ASI_Not_Prsnt : BOOL ;	//ASi Slave not present
+   ASI_Error : BOOL ;	//ASi Slave error
+   ASI_2_Not_Prsnt : BOOL ;	//ASi Slave 2 not present
+   ASI_2_Error : BOOL ;	//ASi Slave 2 error 
+   Shutter_Not_Automatic : BOOL ;	//Shutter not in automatic mode
+   Shutter_Not_Healthy : BOOL ;	//Shutter not healthy
+   Open_Time_Out : BOOL ;	//Shutter open timeout
+   Close_Time_Out : BOOL ;	//Shutter close timeout
+   Shutter_Open : BOOL ;	//Shutter is opened
+   Shutter_Close : BOOL ;	//Shutter is closed
+   PEC_Blockage : BOOL ;	//Photo Cell blockage
+   Technical_Error : BOOL ;	//Technical error
+   Safety_Edge : BOOL ;	//Safety edge detected
+   Clearing_Time_Out : BOOL ;	//Clearing timeout
+   Fire_Alarm : BOOL ;	//Fire Alarm detected
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,191 @@
+DATA_BLOCK "DB_Default_ECS"
+TITLE =%version: 0.04 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:21:20 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//20643: DB moved to NON RETAIN memory                  nlHdL    16-09-14   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    7-3-13   0.02
+//Initial version                                         nlLvdG  22-03-12  0.01
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   ECS : ARRAY  [0 .. 10 ] OF "UDT_ECS_Record";	
+  END_STRUCT ;	
+BEGIN
+   ECS[0].LNK := 0; 
+   ECS[0].CIR.Expected_Item := FALSE; 
+   ECS[0].CIR.Unexpected_Item := FALSE; 
+   ECS[0].CIR.Hand_Over := FALSE; 
+   ECS[0].CIR.Update_Succesfull := FALSE; 
+   ECS[0].CIR.Update_Ongoing := FALSE; 
+   ECS[0].CIR.Gap_Too_Small := FALSE; 
+   ECS[0].CIR.Spare_0_6 := FALSE; 
+   ECS[0].CIR.Spare_0_7 := FALSE; 
+   ECS[0].CIR.Last_Location := DW#16#0; 
+   ECS[0].CIR.Last_Slip := 0; 
+   ECS[0].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[0].Routing_Result.RoutingTableDB := 0; 
+   ECS[0].Routing_Result.SuccesDirTaken := 0; 
+   ECS[0].Routing_Result.Arrived_Location := 0; 
+   ECS[1].LNK := 0; 
+   ECS[1].CIR.Expected_Item := FALSE; 
+   ECS[1].CIR.Unexpected_Item := FALSE; 
+   ECS[1].CIR.Hand_Over := FALSE; 
+   ECS[1].CIR.Update_Succesfull := FALSE; 
+   ECS[1].CIR.Update_Ongoing := FALSE; 
+   ECS[1].CIR.Gap_Too_Small := FALSE; 
+   ECS[1].CIR.Spare_0_6 := FALSE; 
+   ECS[1].CIR.Spare_0_7 := FALSE; 
+   ECS[1].CIR.Last_Location := DW#16#0; 
+   ECS[1].CIR.Last_Slip := 0; 
+   ECS[1].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[1].Routing_Result.RoutingTableDB := 0; 
+   ECS[1].Routing_Result.SuccesDirTaken := 0; 
+   ECS[1].Routing_Result.Arrived_Location := 0; 
+   ECS[2].LNK := 0; 
+   ECS[2].CIR.Expected_Item := FALSE; 
+   ECS[2].CIR.Unexpected_Item := FALSE; 
+   ECS[2].CIR.Hand_Over := FALSE; 
+   ECS[2].CIR.Update_Succesfull := FALSE; 
+   ECS[2].CIR.Update_Ongoing := FALSE; 
+   ECS[2].CIR.Gap_Too_Small := FALSE; 
+   ECS[2].CIR.Spare_0_6 := FALSE; 
+   ECS[2].CIR.Spare_0_7 := FALSE; 
+   ECS[2].CIR.Last_Location := DW#16#0; 
+   ECS[2].CIR.Last_Slip := 0; 
+   ECS[2].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[2].Routing_Result.RoutingTableDB := 0; 
+   ECS[2].Routing_Result.SuccesDirTaken := 0; 
+   ECS[2].Routing_Result.Arrived_Location := 0; 
+   ECS[3].LNK := 0; 
+   ECS[3].CIR.Expected_Item := FALSE; 
+   ECS[3].CIR.Unexpected_Item := FALSE; 
+   ECS[3].CIR.Hand_Over := FALSE; 
+   ECS[3].CIR.Update_Succesfull := FALSE; 
+   ECS[3].CIR.Update_Ongoing := FALSE; 
+   ECS[3].CIR.Gap_Too_Small := FALSE; 
+   ECS[3].CIR.Spare_0_6 := FALSE; 
+   ECS[3].CIR.Spare_0_7 := FALSE; 
+   ECS[3].CIR.Last_Location := DW#16#0; 
+   ECS[3].CIR.Last_Slip := 0; 
+   ECS[3].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[3].Routing_Result.RoutingTableDB := 0; 
+   ECS[3].Routing_Result.SuccesDirTaken := 0; 
+   ECS[3].Routing_Result.Arrived_Location := 0; 
+   ECS[4].LNK := 0; 
+   ECS[4].CIR.Expected_Item := FALSE; 
+   ECS[4].CIR.Unexpected_Item := FALSE; 
+   ECS[4].CIR.Hand_Over := FALSE; 
+   ECS[4].CIR.Update_Succesfull := FALSE; 
+   ECS[4].CIR.Update_Ongoing := FALSE; 
+   ECS[4].CIR.Gap_Too_Small := FALSE; 
+   ECS[4].CIR.Spare_0_6 := FALSE; 
+   ECS[4].CIR.Spare_0_7 := FALSE; 
+   ECS[4].CIR.Last_Location := DW#16#0; 
+   ECS[4].CIR.Last_Slip := 0; 
+   ECS[4].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[4].Routing_Result.RoutingTableDB := 0; 
+   ECS[4].Routing_Result.SuccesDirTaken := 0; 
+   ECS[4].Routing_Result.Arrived_Location := 0; 
+   ECS[5].LNK := 0; 
+   ECS[5].CIR.Expected_Item := FALSE; 
+   ECS[5].CIR.Unexpected_Item := FALSE; 
+   ECS[5].CIR.Hand_Over := FALSE; 
+   ECS[5].CIR.Update_Succesfull := FALSE; 
+   ECS[5].CIR.Update_Ongoing := FALSE; 
+   ECS[5].CIR.Gap_Too_Small := FALSE; 
+   ECS[5].CIR.Spare_0_6 := FALSE; 
+   ECS[5].CIR.Spare_0_7 := FALSE; 
+   ECS[5].CIR.Last_Location := DW#16#0; 
+   ECS[5].CIR.Last_Slip := 0; 
+   ECS[5].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[5].Routing_Result.RoutingTableDB := 0; 
+   ECS[5].Routing_Result.SuccesDirTaken := 0; 
+   ECS[5].Routing_Result.Arrived_Location := 0; 
+   ECS[6].LNK := 0; 
+   ECS[6].CIR.Expected_Item := FALSE; 
+   ECS[6].CIR.Unexpected_Item := FALSE; 
+   ECS[6].CIR.Hand_Over := FALSE; 
+   ECS[6].CIR.Update_Succesfull := FALSE; 
+   ECS[6].CIR.Update_Ongoing := FALSE; 
+   ECS[6].CIR.Gap_Too_Small := FALSE; 
+   ECS[6].CIR.Spare_0_6 := FALSE; 
+   ECS[6].CIR.Spare_0_7 := FALSE; 
+   ECS[6].CIR.Last_Location := DW#16#0; 
+   ECS[6].CIR.Last_Slip := 0; 
+   ECS[6].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[6].Routing_Result.RoutingTableDB := 0; 
+   ECS[6].Routing_Result.SuccesDirTaken := 0; 
+   ECS[6].Routing_Result.Arrived_Location := 0; 
+   ECS[7].LNK := 0; 
+   ECS[7].CIR.Expected_Item := FALSE; 
+   ECS[7].CIR.Unexpected_Item := FALSE; 
+   ECS[7].CIR.Hand_Over := FALSE; 
+   ECS[7].CIR.Update_Succesfull := FALSE; 
+   ECS[7].CIR.Update_Ongoing := FALSE; 
+   ECS[7].CIR.Gap_Too_Small := FALSE; 
+   ECS[7].CIR.Spare_0_6 := FALSE; 
+   ECS[7].CIR.Spare_0_7 := FALSE; 
+   ECS[7].CIR.Last_Location := DW#16#0; 
+   ECS[7].CIR.Last_Slip := 0; 
+   ECS[7].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[7].Routing_Result.RoutingTableDB := 0; 
+   ECS[7].Routing_Result.SuccesDirTaken := 0; 
+   ECS[7].Routing_Result.Arrived_Location := 0; 
+   ECS[8].LNK := 0; 
+   ECS[8].CIR.Expected_Item := FALSE; 
+   ECS[8].CIR.Unexpected_Item := FALSE; 
+   ECS[8].CIR.Hand_Over := FALSE; 
+   ECS[8].CIR.Update_Succesfull := FALSE; 
+   ECS[8].CIR.Update_Ongoing := FALSE; 
+   ECS[8].CIR.Gap_Too_Small := FALSE; 
+   ECS[8].CIR.Spare_0_6 := FALSE; 
+   ECS[8].CIR.Spare_0_7 := FALSE; 
+   ECS[8].CIR.Last_Location := DW#16#0; 
+   ECS[8].CIR.Last_Slip := 0; 
+   ECS[8].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[8].Routing_Result.RoutingTableDB := 0; 
+   ECS[8].Routing_Result.SuccesDirTaken := 0; 
+   ECS[8].Routing_Result.Arrived_Location := 0; 
+   ECS[9].LNK := 0; 
+   ECS[9].CIR.Expected_Item := FALSE; 
+   ECS[9].CIR.Unexpected_Item := FALSE; 
+   ECS[9].CIR.Hand_Over := FALSE; 
+   ECS[9].CIR.Update_Succesfull := FALSE; 
+   ECS[9].CIR.Update_Ongoing := FALSE; 
+   ECS[9].CIR.Gap_Too_Small := FALSE; 
+   ECS[9].CIR.Spare_0_6 := FALSE; 
+   ECS[9].CIR.Spare_0_7 := FALSE; 
+   ECS[9].CIR.Last_Location := DW#16#0; 
+   ECS[9].CIR.Last_Slip := 0; 
+   ECS[9].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[9].Routing_Result.RoutingTableDB := 0; 
+   ECS[9].Routing_Result.SuccesDirTaken := 0; 
+   ECS[9].Routing_Result.Arrived_Location := 0; 
+   ECS[10].LNK := 0; 
+   ECS[10].CIR.Expected_Item := FALSE; 
+   ECS[10].CIR.Unexpected_Item := FALSE; 
+   ECS[10].CIR.Hand_Over := FALSE; 
+   ECS[10].CIR.Update_Succesfull := FALSE; 
+   ECS[10].CIR.Update_Ongoing := FALSE; 
+   ECS[10].CIR.Gap_Too_Small := FALSE; 
+   ECS[10].CIR.Spare_0_6 := FALSE; 
+   ECS[10].CIR.Spare_0_7 := FALSE; 
+   ECS[10].CIR.Last_Location := DW#16#0; 
+   ECS[10].CIR.Last_Slip := 0; 
+   ECS[10].Routing_Result.Sort_Location_ID := DW#16#0; 
+   ECS[10].Routing_Result.RoutingTableDB := 0; 
+   ECS[10].Routing_Result.SuccesDirTaken := 0; 
+   ECS[10].Routing_Result.Arrived_Location := 0; 
+END_DATA_BLOCK
+

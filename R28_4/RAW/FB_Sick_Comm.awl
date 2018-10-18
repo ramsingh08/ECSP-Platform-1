@@ -1,0 +1,331 @@
+FUNCTION_BLOCK "FB_Sick_Comm"
+TITLE =%version: 0.08 % CN: 33 
+//Function:
+//Communication with Sick scanner. 
+//
+//Based on version 1.0 FB_Scanner_Com_Sick
+//
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 6 juli 2015 10:32:56 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.08
+//15797: Keyword release added                          nlwwij   26-09-13   0.08
+//CR19512 Update sources according S7 Manager           nlHdL    8-3-13   0.07
+//CR8095 Comments input CFG changed                     nlple    06-01-12   0.06
+//PR6998 Read length equal to Hardware conf (64 bytes)  nlple    27-04-11   0.05  
+//for ctrl bytes responsible for toggle soft trigger
+//ATR -> BSO                                            nlJBax   26-10-10   0.04
+//Remove author and name indication                     nlMRe    09-09-10   0.03
+//Changes                                               inPNa    20-07-10   0.02
+//Initial version                                       inPNa    09-07-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_ScannerType : CHAR  := 'N';	//CFG: 'N': None, 'B': Barcode, 'V': Volume, 'R': RF-ID and 'C': Combi scanner
+  i_CFG_Input_StartAddr : POINTER ;	//CFG: Start address of input range for Sick communication (See hardware config)
+  i_CFG_Output_StartAddr : POINTER ;	//CFG: Start address of output range for Sick communication (See hardware config)
+  i_CFG_DB_SICK_Data : BLOCK_DB ;	//CFG: SICK Scanner DATABLOCK
+  i_DI_Receive_BMV : BLOCK_DB ;	//Instance DB of Receive BMV
+  i_DI_GetData_SendTrig : BLOCK_DB ;	//Instance DB of GetData_SendTrig
+  i_Trigger_Scanner : BOOL ;	//Trigger input to start/stop the scanner by software
+END_VAR
+VAR
+  s_I_Barcode_Length : INT ;	//Input length for communication to barcode scanners
+  s_O_Barcode_Length : INT ;	//Output length for communication to barcode scanners
+  s_I_Volume_Length : INT ;	//Input length for communication to volume scanners
+  s_O_Volume_Length : INT ;	//Output length for communication to volume scanners
+  s_I_RFID_Length : INT ;	//Input length for communication to RF-ID scanners
+  s_O_RFID_Length : INT ;	//Output length for communication to RF-ID scanners
+  s_I_Combi_Length : INT ;	//Input length for communication to Combi scanners
+  s_O_Combi_Length : INT ;	//Output length for communication to Combi scanners
+  s_BSO_Start_Address : INT ;	//Start Address of Barcode Scanner in DB_SICK_DATA
+  s_VSO_Start_Address : INT ;	//Start Address of Volume scanner in DB_SICK_DATA
+  s_RFID_Start_Address : INT ;	//Start Address of RFID scanner in DB_SICK_DATA
+  s_Combi_Start_Address : INT ;	//Start Address of COMBI scanner in DB_SICK_DATA
+  s_BSO_Data_Length : INT ;	//DATA length of Barcode Scanner in DB_SICK_DATA
+  s_VSO_Data_Length : INT ;	//DATA length of Volume Scanner in DB_SICK_DATA
+  s_RFID_Data_Length : INT ;	//DATA length of RFID Scanner in DB_SICK_DATA
+  s_Combi_Data_Length : INT ;	//DATA length of Combi Scanner in DB_SICK_DATA
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+END_VAR
+VAR_TEMP
+  t_Input_Any_Pointer : ANY ;	//Input ANY for BMV communication
+  t_Output_Any_Pointer : ANY ;	//Output ANY for BMV communication
+  t_Any_Pointer_Data : ANY ;	//ANY pointer to the data in the DB_data
+  t_Input_StartAddr : DWORD ;	//Input start address
+  t_Output_StartAddr : DWORD ;	//Output start address
+  t_Data_Start_address : DWORD ;	//Start Address in DB_SICK_DATA
+  t_Data_Length : INT ;	//Data Length in DB_SICK_DATA
+  t_Input_Length : INT ;	//Input length in number of bytes used for BMV communication
+  t_Output_Length : INT ;	//Output length in number of bytes used for BMV communication
+  t_DBno_Sick_Data : INT ;	//DB number of Data from Sick scanner
+  t_New_Data_Received : BOOL ;	//New data received from scanner
+  t_Init : BOOL ;	//Init the function blocks from Sick
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initial function
+
+      NOP   0; 
+      CLR   ; 
+      =     #t_Init; 
+
+      O     "M_First_Scan"; 
+      ON    #s_Done; 
+      JCN   AA99; 
+
+      SET   ; 
+      =     #s_Done; 
+      =     #t_Init; 
+
+//-------configured Input & Output address Length of the Scanner-----------//
+      L     64; 
+      T     #s_I_Barcode_Length; // Input address length for BSO
+      T     #s_I_Volume_Length; // Input address length for VSO
+      T     #s_I_RFID_Length; // Input address length for RFID
+      T     #s_I_Combi_Length; // Input address length for Combi
+
+      L     8; 
+      T     #s_O_Barcode_Length; // Output address length for BSO
+      T     #s_O_Volume_Length; // Output address length for VSO
+      T     #s_O_RFID_Length; // Output address length for RFID
+      T     #s_O_Combi_Length; // Output address length for Combi
+
+//--------------Start Address in the DB_SICK_DATA ------------------//
+      L     2; //Start address in DB_SICK_DATA for BSO
+      T     #s_BSO_Start_Address; 
+
+      L     38; //Start address in DB_SICK_DATA for VSO
+      T     #s_VSO_Start_Address; 
+
+      L     92; //Start address in DB_SICK_DATA for RFID
+      T     #s_RFID_Start_Address; 
+
+      L     140; //Start address in DB_SICK_DATA for Combi
+      T     #s_Combi_Start_Address; 
+
+//---------------Data Length in the DB_SICK_DATA ------------------//
+
+      L     36; //Number of Bytes in DB_SICK_DATA for BSO
+      T     #s_BSO_Data_Length; 
+
+      L     54; //Number of Bytes in DB_SICK_DATA for VSO
+      T     #s_VSO_Data_Length; 
+
+      L     48; //Number of Bytes in DB_SICK_DATA for RFID
+      T     #s_RFID_Data_Length; 
+
+      L     78; //Number of Bytes in DB_SICK_DATA for Combi
+      T     #s_Combi_Data_Length; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Scanner type identification
+
+      NOP   0; 
+//------------------Determining the Scanner Type----------------//
+      L     'B'; //A Barcode Scanner is configured
+      L     #i_CFG_ScannerType; 
+      ==I   ; 
+      JC    BA01; 
+
+      L     'V'; //A Volume Scanner is configured
+      L     #i_CFG_ScannerType; 
+      ==I   ; 
+      JC    BA02; 
+
+      L     'R'; //A RF-ID Scanner is configured
+      L     #i_CFG_ScannerType; 
+      ==I   ; 
+      JC    BA03; 
+
+      L     'C'; //A Combi Scanner is configured
+      L     #i_CFG_ScannerType; 
+      ==I   ; 
+      JC    BA04; 
+
+      JU    CA99; //No Scanner configured Jump to end of the Network
+
+// Set configuration for BSO Automatic Tag Reader
+BA01: L     #s_I_Barcode_Length; //Input address length
+      T     #t_Input_Length; 
+
+      L     #s_O_Barcode_Length; //Output address length
+      T     #t_Output_Length; 
+
+      L     #s_BSO_Start_Address; //Data Start Address in DB_DATA_SICK
+      T     #t_Data_Start_address; 
+
+      L     #s_BSO_Data_Length; //Data Length in DB_DATA_SICK
+      T     #t_Data_Length; 
+
+      JU    BA99; 
+
+// Set configuration for Volume Scanner
+BA02: L     #s_I_Volume_Length; //Input address length
+      T     #t_Input_Length; 
+
+      L     #s_O_Volume_Length; //Output address length
+      T     #t_Output_Length; 
+
+      L     #s_VSO_Start_Address; //Data Start Address in DB_DATA_SICK
+      T     #t_Data_Start_address; 
+
+      L     #s_VSO_Data_Length; //Data Length in DB_DATA_SICK
+      T     #t_Data_Length; 
+
+
+      JU    BA99; 
+
+// Set configuration for  RF-ID Scanner
+BA03: L     #s_I_RFID_Length; //Input address length
+      T     #t_Input_Length; 
+
+      L     #s_O_RFID_Length; //Output address length
+      T     #t_Output_Length; 
+
+      L     #s_RFID_Start_Address; //Data Start Address in DB_DATA_SICK
+      T     #t_Data_Start_address; 
+
+      L     #s_RFID_Data_Length; //Data Length in DB_DATA_SICK
+      T     #t_Data_Length; 
+
+      JU    BA99; 
+
+// Set configuration for Combi Scanner
+BA04: L     #s_I_Combi_Length; //Input address length
+      T     #t_Input_Length; 
+
+      L     #s_O_Combi_Length; //Output address length
+      T     #t_Output_Length; 
+
+      L     #s_Combi_Start_Address; //Data Start Address in DB_DATA_SICK
+      T     #t_Data_Start_address; 
+
+      L     #s_Combi_Data_Length; //Data Length in DB_DATA_SICK
+      T     #t_Data_Length; 
+
+      JU    BA99; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Handling Send & Receieve Data to SICK Scanner
+
+      NOP   0; 
+//--------Open the DB_SICK_DATA Datablock-----------// 
+      OPN   #i_CFG_DB_SICK_Data; // BSO Data DB
+      L     DBNO; 
+      T     #t_DBno_Sick_Data; // Determine data block DB number  
+
+//Assemble the DATA Output pointer for DB_SICK_DATA
+//-------------------------------------------------   
+
+      LAR1  P##t_Any_Pointer_Data; 
+/// Syntax ID 
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; 
+/// Load data type "Bytes"
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; 
+/// Load ANY Pointer length
+      L     #t_Data_Length; // Data Length in DB_SICK_DATA
+      T     LW [AR1,P#2.0]; 
+/// Load ANY Pointer DB no (0 if no DB)
+      L     #t_DBno_Sick_Data; 
+      T     LW [AR1,P#4.0]; 
+/// Load ANY Pointer start address
+      L     #t_Data_Start_address; // Start Address in DB_SICK_DATA
+      SLW   3; 
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; //Store 84H: DBX Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+
+// assemble the BMV input pointer 
+//-------------------------------
+      L     P##i_CFG_Input_StartAddr; // Record "Start"pointer
+      LAR1  ; // Absolute address Source
+      L     D [AR1,P#2.0]; 
+      L     DW#16#8000FFFF; 
+      AD    ; 
+      T     #t_Input_StartAddr; // Address Destination
+
+      LAR1  P##t_Input_Any_Pointer; 
+/// Syntax ID (Is always 10)                                              Data that is retrieved from the Sick scanner
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; 
+/// Load data type "Bytes" (02 = Byte)
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; 
+/// Load ANY Pointer length
+      L     #t_Input_Length; //Input address length
+      T     LW [AR1,P#2.0]; 
+/// Load ANY Pointer DB no (0 if no DB)
+      L     L#0; 
+      T     LW [AR1,P#4.0]; 
+/// Load ANY Pointer start address
+      L     #t_Input_StartAddr; //Input Start Address
+      T     LD [AR1,P#6.0]; 
+
+
+// assemble the BMV output pointer 
+//--------------------------------
+      L     P##i_CFG_Output_StartAddr; // Record "Start"pointer
+      LAR1  ; // Absolute address Source
+      L     D [AR1,P#2.0]; 
+      L     DW#16#8000FFFF; 
+      AD    ; 
+      T     #t_Output_StartAddr; // Address Destination
+
+      LAR1  P##t_Output_Any_Pointer; 
+/// Syntax ID 
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; 
+/// Load data type "Bytes"
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; 
+/// Load ANY Pointer length
+      L     #t_Output_Length; //Output address length
+      T     LW [AR1,P#2.0]; 
+/// Load ANY Pointer DB no (0 if no DB)
+      L     0; 
+      T     LW [AR1,P#4.0]; 
+/// Load ANY Pointer start address
+      L     #t_Output_StartAddr; //Output Start Address
+      T     LD [AR1,P#6.0]; 
+
+// Call communication block
+//Receives all telegrams from the BMV module and places it in the instance data module.
+      CALL "FB_Receive_BMV" , #i_DI_Receive_BMV (
+           INIT                     := #t_Init,
+           IN_P                     := #t_Input_Any_Pointer,
+           OUT_P                    := #t_Output_Any_Pointer);
+
+// Call write data
+//Sends trigger telegrams to the BMV module and 
+//copy the scanner received telegrams from the "FB_Recieve_BMV"Instance DB to the receive buffer(DB_Sick_Data).
+      CALL "FB_GetData_SendTrig" , #i_DI_GetData_SendTrig (
+           INIT                     := #t_Init,
+           TRIGGER                  := #i_Trigger_Scanner,
+           CLV_ADR_HIGH             := 'x',
+           CLV_ADR_LOW              := 'x',
+           RCV_BUF                  := #t_Any_Pointer_Data,
+           WR_ECHO                  := TRUE,
+           GDAT_DB                  := #i_DI_Receive_BMV,
+           RCV_DATA                 := #t_New_Data_Received);
+
+//--------Open the DB_SICK_DATA Datablock---------// 
+      OPN   DB [#t_DBno_Sick_Data]; 
+      A     #t_New_Data_Received; 
+      =     DBX    0.0; 
+
+CA99: NOP   0; 
+END_FUNCTION_BLOCK
+

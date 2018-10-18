@@ -1,0 +1,245 @@
+DATA_BLOCK "DB_Scanner_Data_1"
+TITLE =%version: 0.02 % CN: 20 
+//
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 6 juli 2015 10:24:42 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial version based on 0.06 DB_Sick_Data_1          nlHdL    19-04-13   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   OS_New_Data_Received : BOOL ;	//TRUE for one scan when new data has been received 	
+   BSO : STRUCT 	
+    Data : "UDT_Raw_BSO_Data";	
+   END_STRUCT ;	
+   VSO : STRUCT 	
+    Data : "UDT_Raw_VSO_Data";	
+   END_STRUCT ;	
+   RSO : STRUCT 	
+    Data : "UDT_Raw_RSO_Data";	
+   END_STRUCT ;	
+   CSO : STRUCT 	
+    Data : "UDT_Raw_CSO_Data";	
+   END_STRUCT ;	
+  END_STRUCT ;	
+BEGIN
+   OS_New_Data_Received := FALSE; 
+   BSO.Data.Number_Of_Chars := B#16#0; 
+   BSO.Data.Fill := B#16#0; 
+   BSO.Data.Body.Scanresult.LPN1[1] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[2] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[3] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[4] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[5] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[6] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[7] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[8] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[9] := ' '; 
+   BSO.Data.Body.Scanresult.LPN1[10] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[1] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[2] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[3] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[4] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[5] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[6] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[7] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[8] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[9] := ' '; 
+   BSO.Data.Body.Scanresult.LPN2[10] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[1] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[2] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[3] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[4] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[5] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[6] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[7] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[8] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[9] := ' '; 
+   BSO.Data.Body.Scanresult.LPN3[10] := ' '; 
+   BSO.Data.Status := W#16#0; 
+   BSO.Data.Block_Check := B#16#0; 
+   VSO.Data.Number_Of_Chars := B#16#0; 
+   VSO.Data.Fill := B#16#0; 
+   VSO.Data.Body.Product_Length[1] := ' '; 
+   VSO.Data.Body.Product_Length[2] := ' '; 
+   VSO.Data.Body.Product_Length[3] := ' '; 
+   VSO.Data.Body.Product_Length[4] := ' '; 
+   VSO.Data.Body.Product_Width[1] := ' '; 
+   VSO.Data.Body.Product_Width[2] := ' '; 
+   VSO.Data.Body.Product_Width[3] := ' '; 
+   VSO.Data.Body.Product_Width[4] := ' '; 
+   VSO.Data.Body.Product_Height[1] := ' '; 
+   VSO.Data.Body.Product_Height[2] := ' '; 
+   VSO.Data.Body.Product_Height[3] := ' '; 
+   VSO.Data.Body.Product_Height[4] := ' '; 
+   VSO.Data.Body.Box_Volume[1] := ' '; 
+   VSO.Data.Body.Box_Volume[2] := ' '; 
+   VSO.Data.Body.Box_Volume[3] := ' '; 
+   VSO.Data.Body.Box_Volume[4] := ' '; 
+   VSO.Data.Body.Box_Volume[5] := ' '; 
+   VSO.Data.Body.Box_Volume[6] := ' '; 
+   VSO.Data.Body.Box_Volume[7] := ' '; 
+   VSO.Data.Body.Box_Volume[8] := ' '; 
+   VSO.Data.Body.Box_Volume[9] := ' '; 
+   VSO.Data.Body.Box_Volume[10] := ' '; 
+   VSO.Data.Body.Real_Volume[1] := ' '; 
+   VSO.Data.Body.Real_Volume[2] := ' '; 
+   VSO.Data.Body.Real_Volume[3] := ' '; 
+   VSO.Data.Body.Real_Volume[4] := ' '; 
+   VSO.Data.Body.Real_Volume[5] := ' '; 
+   VSO.Data.Body.Real_Volume[6] := ' '; 
+   VSO.Data.Body.Real_Volume[7] := ' '; 
+   VSO.Data.Body.Real_Volume[8] := ' '; 
+   VSO.Data.Body.Real_Volume[9] := ' '; 
+   VSO.Data.Body.Real_Volume[10] := ' '; 
+   VSO.Data.Body.Cross_Position[1] := ' '; 
+   VSO.Data.Body.Cross_Position[2] := ' '; 
+   VSO.Data.Body.Cross_Position[3] := ' '; 
+   VSO.Data.Body.Cross_Position[4] := ' '; 
+   VSO.Data.Body.Supply_Angle[1] := ' '; 
+   VSO.Data.Body.Supply_Angle[2] := ' '; 
+   VSO.Data.Body.Supply_Angle[3] := ' '; 
+   VSO.Data.Body.Supply_Angle[4] := ' '; 
+   VSO.Data.Body.Framework_Length[1] := ' '; 
+   VSO.Data.Body.Framework_Length[2] := ' '; 
+   VSO.Data.Body.Framework_Length[3] := ' '; 
+   VSO.Data.Body.Framework_Length[4] := ' '; 
+   VSO.Data.Body.Framework_Width[1] := ' '; 
+   VSO.Data.Body.Framework_Width[2] := ' '; 
+   VSO.Data.Body.Framework_Width[3] := ' '; 
+   VSO.Data.Body.Framework_Width[4] := ' '; 
+   VSO.Data.Status := W#16#0; 
+   VSO.Data.Block_Check := B#16#0; 
+   RSO.Data.Number_Of_Chars := B#16#0; 
+   RSO.Data.Fill := B#16#0; 
+   RSO.Data.Body.Scanresult.LPN1[1] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[2] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[3] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[4] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[5] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[6] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[7] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[8] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[9] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1[10] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[1] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[2] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[3] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[4] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[5] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[6] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[7] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[8] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[9] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2[10] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[1] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[2] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[3] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[4] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[5] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[6] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[7] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[8] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[9] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3[10] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1_Extension[1] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1_Extension[2] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1_Extension[3] := ' '; 
+   RSO.Data.Body.Scanresult.LPN1_Extension[4] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2_Extension[1] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2_Extension[2] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2_Extension[3] := ' '; 
+   RSO.Data.Body.Scanresult.LPN2_Extension[4] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3_Extension[1] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3_Extension[2] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3_Extension[3] := ' '; 
+   RSO.Data.Body.Scanresult.LPN3_Extension[4] := ' '; 
+   RSO.Data.Status := W#16#0; 
+   RSO.Data.Block_Check := B#16#0; 
+   CSO.Data.Number_Of_Chars := B#16#0; 
+   CSO.Data.Fill := B#16#0; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[1] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[2] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[3] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[4] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[5] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[6] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[7] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[8] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[9] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN1[10] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[1] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[2] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[3] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[4] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[5] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[6] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[7] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[8] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[9] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN2[10] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[1] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[2] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[3] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[4] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[5] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[6] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[7] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[8] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[9] := ' '; 
+   CSO.Data.Body.Scanresult.BSO.Scanresult.LPN3[10] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[1] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[2] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[3] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[4] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[5] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[6] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[7] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[8] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[9] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1[10] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[1] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[2] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[3] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[4] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[5] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[6] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[7] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[8] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[9] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2[10] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[1] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[2] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[3] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[4] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[5] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[6] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[7] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[8] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[9] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3[10] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1_Extension[1] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1_Extension[2] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1_Extension[3] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN1_Extension[4] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2_Extension[1] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2_Extension[2] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2_Extension[3] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN2_Extension[4] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3_Extension[1] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3_Extension[2] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3_Extension[3] := ' '; 
+   CSO.Data.Body.Scanresult.RSO.Scanresult.LPN3_Extension[4] := ' '; 
+   CSO.Data.Status := W#16#0; 
+   CSO.Data.Block_Check := B#16#0; 
+END_DATA_BLOCK
+
