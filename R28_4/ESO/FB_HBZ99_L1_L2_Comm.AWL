@@ -1,5 +1,5 @@
 FUNCTION_BLOCK "FB_HBZ99_L1_L2_Comm"
-TITLE =%version: 0.01 % CN: 31
+TITLE =%version: 0.02 % CN: 31
 //Function: 
 //Provides communication to and from "Smiths" HBS level 1/2 machine.
 //With TTY over 3964(R). 
@@ -15,6 +15,7 @@ TITLE =%version: 0.01 % CN: 31
 //               %Library: ECS-P Release 28.4%
 ////Modification History:                             By:    Date:     Rev:
 //-------------------------------------------------- -----  --------  -------
+//Receive buffer clear added                         inrsi   18-10-18    0.02
 //Initial version for Quang Ninh                     inakulk 23-03-18    0.01
 //
 //Modification History: [ESO Release]                 By:    Date:     Rev:
@@ -34,7 +35,7 @@ TITLE =%version: 0.01 % CN: 31
 //Updated, L2 send is not used so removed.           nltvb   04-09-13    0.02
 //Based on Kiev nlMRe 22-03-11 0.03                  nlwwij  20-06-13    0.01
 //
-FAMILY : PRJ
+FAMILY : ESO
 VERSION : 0.0
 
 
@@ -176,6 +177,51 @@ TITLE =CA: Copy received data HBS Level 1 to Receive DB Level 1
            i_ANY_Data               := #s_Rcv_Buffer,
            i_ID                     := DW#16#0,
            o_RET_VAL_FIFO           := #t_RET_VAL_Word);
+
+
+      L     0; 
+      T     #s_Rcv_Buffer.Message_Body[1]; 
+      T     #s_Rcv_Buffer.Message_Body[2]; 
+      T     #s_Rcv_Buffer.Message_Body[3]; 
+      T     #s_Rcv_Buffer.Message_Body[4]; 
+      T     #s_Rcv_Buffer.Message_Body[5]; 
+      T     #s_Rcv_Buffer.Message_Body[6]; 
+      T     #s_Rcv_Buffer.Message_Body[7]; 
+      T     #s_Rcv_Buffer.Message_Body[8]; 
+      T     #s_Rcv_Buffer.Message_Body[9]; 
+      T     #s_Rcv_Buffer.Message_Body[10]; 
+      T     #s_Rcv_Buffer.Message_Body[11]; 
+      T     #s_Rcv_Buffer.Message_Body[12]; 
+      T     #s_Rcv_Buffer.Message_Body[13]; 
+      T     #s_Rcv_Buffer.Message_Body[14]; 
+      T     #s_Rcv_Buffer.Message_Body[15]; 
+      T     #s_Rcv_Buffer.Message_Body[16]; 
+      T     #s_Rcv_Buffer.Message_Body[17]; 
+      T     #s_Rcv_Buffer.Message_Body[18]; 
+      T     #s_Rcv_Buffer.Message_Body[19]; 
+      T     #s_Rcv_Buffer.Message_Body[20]; 
+      T     #s_Rcv_Buffer.Message_Body[21]; 
+      T     #s_Rcv_Buffer.Message_Body[22]; 
+      T     #s_Rcv_Buffer.Message_Body[23]; 
+      T     #s_Rcv_Buffer.Message_Body[24]; 
+      T     #s_Rcv_Buffer.Message_Body[25]; 
+      T     #s_Rcv_Buffer.Message_Body[26]; 
+      T     #s_Rcv_Buffer.Message_Body[27]; 
+      T     #s_Rcv_Buffer.Message_Body[28]; 
+      T     #s_Rcv_Buffer.Message_Body[29]; 
+      T     #s_Rcv_Buffer.Message_Body[30]; 
+      T     #s_Rcv_Buffer.Message_Body[31]; 
+      T     #s_Rcv_Buffer.Message_Body[32]; 
+      T     #s_Rcv_Buffer.Message_Body[33]; 
+      T     #s_Rcv_Buffer.Message_Body[34]; 
+      T     #s_Rcv_Buffer.Message_Body[35]; 
+      T     #s_Rcv_Buffer.Message_Body[36]; 
+      T     #s_Rcv_Buffer.Message_Body[37]; 
+      T     #s_Rcv_Buffer.Message_Body[38]; 
+      T     #s_Rcv_Buffer.Message_Body[39]; 
+      T     #s_Rcv_Buffer.Message_Body[40]; 
+      T     #s_Rcv_Buffer.Message_Body[41]; 
+      T     #s_Rcv_Buffer.Message_Body[42]; 
 
       JU    CA99; 
 // -------------------------------
