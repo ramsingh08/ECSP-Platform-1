@@ -1,0 +1,1273 @@
+FUNCTION_BLOCK "FB_VDZ"
+TITLE =%version: 1.07 % CN: 60
+//Function:
+//Module to control a Vertical Discontinuous Zone of function variant 21. This 
+//means it is a BF type in an S shape without shutters and loading and unloading 
+//is not done on the same side of the VDZ. 
+//
+//The Vertical Discontinuous Zone comprises of sections as detailed below:
+//- Switch motor section
+//- Carrier conveyor section
+//The Vertical Discontinuous Zone comprises elements as detailed below:
+//- Collision Detection PECs
+//- Gap Clear PECs
+//
+//Description of the Vertical Discontinuous Zone (function variant 21):
+//
+//            +---------+
+//            |         |_ _ _ _ _ _
+//            |                     
+//            |          -> Outfeed 
+//            |          _ _ _ _ _ _
+//            |         |
+//            |+-------+|
+//            | Carrier |
+//            |+-------+|
+// _ _ _ _ _ _|         |
+//                      |
+// Infeed ->            |
+// _ _ _ _ _ _          |
+//            |         |
+//            +---------+
+//
+//Note that upstream and downstream do not change when the direction is changed
+//
+//Operation:           - PEC 1 = PEC position
+//                     - PEC 2 = PEC trigger
+//                     - Gap PEC 1 = PEC trigger
+//                     - Gap PEC 2 = PEC trigger
+//
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   maandag 6 juli 2015 10:46:31 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.07
+//21434: Block call update FB_EQP_Switch                nltny    19-01-15   1.07
+//17442: Modified naming Fieldbus error                 nlHdL    26-06-14   1.06
+//17442: Generic block for handling Fieldbus device     nlHdL    18-04-14   1.05
+//17606: Changed OR conditions in first line to AND     nlHHop   21-02-14   1.04 
+//12269: CFG_Record_Type removed. Default LNK           nlHdL    09-01-14   1.03
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.10 of PLT version 0
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Reverse : BOOL ;	//CMD: Reverse command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Commands : "UDT_VDZ_Command";	//CMD: Commands Interface
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no fieldbus or IO error)
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_PLT_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock Upstream section
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_IO_NOT_PEC_Clr_Up : BOOL  := TRUE;	//HW: Clear detection error up signal of PEC(TRUE = No error)
+  i_IO_NOT_PEC_Clr_Down : BOOL  := TRUE;	//HW: Clear detection error down signal of PEC(TRUE = No error)
+  i_IO_Safety_Pin : BOOL ;	//HW: Safety pin signal
+  i_IO_Upper_Hatch : BOOL ;	//HW: Hatch on the high side of the VDZ
+  i_IO_Lower_Hatch : BOOL ;	//HW: Hatch on the low side of the VDZ
+  i_IO_MS_Automatic_mode : BOOL  := TRUE;	//HW: Main switch of Vertical Discontinuous Zone in 'ON' position (ON=TRUE)
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_Ext_Req_Dis_Send : BOOL ;	//Request signal from external disable send products
+  i_Ext_Req_Rst_ESave : BOOL ;	//Request signal form external reset energy saving
+  i_SWS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CFG_SWS_IO_StartAddr : INT ;	//CFG: Movidrive profibus begin address for movidrive
+  i_CFG_SWS_Position_Up : INT ;	//CFG: [mm] Movidrive position for loading/unloading up
+  i_CFG_SWS_Position_Dwn : INT ;	//CFG: [mm] Movidrive position for loading/unloading down
+  i_CFG_SWS_Speed : INT  := 1000;	//CFG: [mm/sec] Movidrive speed when moving to up or down position
+  i_CFG_SWS_Homing_Speed : INT  := 50;	//CFG: [mm/sec] Movidrive speed when moving in homing mode
+  i_CFG_SWS_Time_Out_Up : INT  := 4000;	//CFG: [ms] Movidrive time-out for reaching the upper position
+  i_CFG_SWS_Time_Out_Down : INT  := 4000;	//CFG: [ms] Movidrive time-out for reaching the lower position
+  i_TRS_Setting : "UDT_TRS_Trk2dir_Sett";	//Data structure: Setting Record: Setting Record
+  i_TRS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CFG_TRS_Run_Out : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_CFG_Start_Up_Distance : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_CFG_TRS_DieBack_Pos : INT  := 30;	//CFG: [cm] Die Back position on carrier conveyor, before handover position
+  i_CFG_TRS_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor speed
+  i_CFG_TRS_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS_IO_NOT_PEC_1 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS_IO_NOT_PEC_2 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS_IO_NOT_PEC_Gap1 : BOOL ;	//HW: Gap clear signal of PEC (TRUE = No product)
+  i_TRS_IO_NOT_PEC_Gap2 : BOOL ;	//HW: Gap clear signal of PEC (TRUE = No product)
+  i_TRS_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Action_Active : BOOL ;	//Action Active
+  o_ST_Manual : BOOL ;	//ST: Mode disabled (offline or manual)
+  o_ST_Up : BOOL ;	//ST: Vertical Discontinuous Zone in up position
+  o_ST_Down : BOOL ;	//ST: Vertical Discontinuous Zone in down position
+  o_ST_MS_Not_Automatic : BOOL ;	//ST: Maintenance Switch of zone in 'OFF' position
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Clr_Detection_Up : BOOL ;	//ST: Clearance detection error up
+  o_ST_Clr_Detection_Down : BOOL ;	//ST: Clearance detection error down
+  o_ST_Bag_Overlength : BOOL ;	//ST: Bag overlength
+  o_ST_Safety_Pin : BOOL ;	//ST: Safety pin detected
+  o_ST_Upper_Hatch : BOOL ;	//ST: Hatch high side opened
+  o_ST_Lower_Hatch : BOOL ;	//ST: Hatch low side opened
+  o_ST_Fixed_Up : BOOL ;	//ST: Fixed up mode activated
+  o_ST_Fixed_Down : BOOL ;	//ST: Fixed down mode activated
+  o_SWS_ST_Running : BOOL ;	//ST: Section is running
+  o_SWS_ST_Started : BOOL ;	//ST: Started
+  o_SWS_ST_LS_Up : BOOL ;	//ST: Movidrive limit switch at top of hoist is triggered
+  o_SWS_ST_LS_Down : BOOL ;	//ST: Movidrive limit switch at bottom of hoist is triggered
+  o_SWS_ST_Time_Out_Up : BOOL ;	//ST: Movidrive time out position up
+  o_SWS_ST_Time_Out_Down : BOOL ;	//ST: Movidrive time out position down
+  o_SWS_ST_Comm_Not_OK : BOOL ;	//ST: Movidrive communication not OK
+  o_SWS_ST_Error : BOOL ;	//ST: Movidrive error
+  o_SWS_ST_Warning : BOOL ;	//ST: Movidrive warning
+  o_TRS_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS_PEC_Offset : INT ;	//Offset from PEC update Trigger
+  o_TRS_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS_ST_Started : BOOL ;	//ST: Started
+  o_TRS_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS_ST_PEC_Blk : BOOL ;	//ST: PEC1 of carrier conveyor blockage
+  o_TRS_ST_PEC2_Blk : BOOL ;	//ST: PEC2 of carrier conveyor blockage
+  o_TRS_ST_PEC_Gap_Blk : BOOL ;	//ST: Gap PEC1 of carrier conveyor blockage
+  o_TRS_ST_PEC2_Gap_Blk : BOOL ;	//ST: Gap PEC2 of carrier conveyor blockage
+  o_TRS_ST_Gap_Not_Clr_Dwn : BOOL ;	//ST: The gap on the downstream side of the carrier conveyor is not clear 
+  o_TRS_ST_Gap_Not_Clr_Ups : BOOL ;	//ST: The gap on the upstream side of the carrier conveyor is not clear 
+  o_TRS_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_TRS_ST_Bad_Update : BOOL ;	//ST: Update Tracking Performance is below warning level
+  o_TRS_EXT_Outputs : "UDT_External_Outputs";	
+END_VAR
+VAR
+  s_SWS_EQP_Switch_MVD : "FB_EQP_Switch_MVD";	//Block call static FB_EQP_Switch_MVD
+  s_TRS_EQP_PEC_1 : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS_EQP_PEC_2 : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC
+  s_TRS_EQP_GAP_PEC_1 : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC
+  s_TRS_EQP_GAP_PEC_2 : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC
+  s_TRS_EQP_BASIC : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS_TRK_Track : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS_MTR_MS_2_Dir : "FB_HW_MTR_2DIR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS_Int_Prog : "UDT_TRS_2Dir_Int_Pr";	//Internal programming for TRS1
+  s_FB_DAT_SWS : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_TRS : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB of the carrier conveyor
+  s_DB_Event_Zone_nr : INT ;	//DB number of zone events
+  s_Displacement : INT ;	//Displacement of the carrier conveyor
+  s_Section_Run : BOOL ;	//Section run signal from PLT DB of carrier conveyor
+  s_Length_Section : INT ;	//Length of the carrier conveyor 
+  s_Dwnstr_Sec_Operational : BOOL ;	//Downstream section is operational bit from PLT DB
+  s_Dwnstr_Inhib_Recv_Item : BOOL ;	//Downstream inhibit receive item bit from PLT DB
+  s_Upstr_Item_At_Handover : BOOL ;	//Upstream section item at handover bit
+  s_TRS_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_ST_Up_Pos : BOOL ;	//Status Carrier conveyor in up position
+  s_ST_Down_Pos : BOOL ;	//Status Carrier conveyor in down position
+  s_ST_MS_Not_Auto : BOOL ;	//Status Maintenance switch of zone in 'OFF' position
+  s_ST_FieldB_NotPrsnt : BOOL ;	//Status Fieldbus Slave not present
+  s_ST_FieldB_Error : BOOL ;	//Status Fieldbus Slave error
+  s_ST_Clr_Detection_Up : BOOL ;	//Status Clearance detection error up
+  s_ST_Clr_Detection_Down : BOOL ;	//Status Clearance detection error down
+  s_ST_Gap_Not_Clear_Upst : BOOL ;	//Status The gap on the upstream side of the carrier conveyor is not clear 
+  s_ST_Gap_Not_Clear_Dwnst : BOOL ;	//Status The gap on the downstream side of the carrier conveyor is not clear 
+  s_ST_Safety_Pin : BOOL ;	//Status Safety pin detected
+  s_ST_Upper_Hatch : BOOL ;	//Status Hatch high side opened
+  s_ST_Lower_Hatch : BOOL ;	//Status Hatch low side opened
+  s_ST_Bag_Overlength : BOOL ;	//Status Bag overlength
+  s_Error_On_Zone_Level : BOOL ;	//There is an error active in the zone
+  s_Mode_Manual : BOOL ;	//Manual mode active
+  s_Mode_Semi_Up : BOOL ;	//Semi-automatic mode up active
+  s_Mode_Semi_Down : BOOL ;	//Semi-automatic mode down acctive
+  s_TRS_Manual_Run : BOOL ;	//Request run in manual mode for carrier conveyor
+  s_TRS_Manual_Run_REV : BOOL ;	//Request run reverse in manual mode for carrier conveyor
+  s_TRS_ST_Items : BOOL ;	//Carrier conveyor has an item
+  s_Write_Esave_Code : BOOL ;	//Write energy save code (-3) on section length
+  s_FP_Write_Esave_Code : BOOL ;	//Flank Positive signal to write energy save code (-3)
+  s_TRS_Occupied_Init : BOOL ;	//TRS is detected to be occupied during initialization
+  s_TRS_In_Reverse : BOOL ;	//Set carrier conveyor in reverse mode
+  s_CMD_Reverse : BOOL ;	//Reverse command to carrier conveyor
+  s_FP_Forward_Command : BOOL ;	//Positive flank of forward request
+  s_FP_Reverse_Command : BOOL ;	//Positive flank of reverse request
+  s_OS_Direction_Change : BOOL ;	//One Shot of direction change signal
+  s_PEC_1 : BOOL ;	//Filtered PEC signal of PEC 1 from PLT DB
+  s_PEC_2 : BOOL ;	//Filtered PEC signal of PEC 2 (upstream PEC)
+  s_GAP_PEC_1 : BOOL ;	//Filtered Gap PEC signal of PEC 1 (downstream PEC)
+  s_GAP_PEC_2 : BOOL ;	//Filtered Gap PEC signal of PEC 2 (upstream PEC)
+  s_Inhib_Recv_to_PLT : BOOL ;	//Inhibit receive item to PLT DB of carrier conveyor
+  s_Initialization_Done : BOOL ;	//Initialization routine done
+  s_Homing_Done : BOOL ;	//Homing routine done
+  s_ST_Homing_Done : BOOL ;	//Status from frequency controller reporting homing is done
+  s_SWS_Req_Stop : BOOL ;	//Request stop to SWS
+  s_SWS_Error : BOOL ;	//The SWS has an error
+  s_Req_Dir_Up : BOOL ;	//Move in up direction
+  s_Req_Dir_B : BOOL ;	//Request to SWS to move to up direction
+  s_SWS_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS_PEC_Offset : INT ;	//PEC offset 
+  s_TRS_Req_Stop : BOOL ;	//Request stop to TRS
+  s_TRS_Req_Halt : BOOL ;	//Request halt to TRS
+  s_Bag_Loading_Finished : BOOL ;	//Loading of bag is finished
+  s_Allow_Dieback_Position : BOOL ;	//Allow item to be halted in dieback position
+  s_Halt_Item_Die_Back_Pos : BOOL ;	//Halt (die-back) carrier section on position "n"
+  s_Esave_Code_Present : BOOL ;	//Energy save code is found in PLT DB of carrier
+  s_Stepped_In_This_Scan : BOOL ;	//Step transition is made in this PLC scan
+  s_S0_Homing : BOOL ;	//Step 0: Homing routine
+  s_S1_Initialize : BOOL ;	//Step 1: Initialize carrier conveyor
+  s_S2_Load_Carrier : BOOL ;	//Step 2: Load carrier conveyor
+  s_S3_Move_Carrier_Unload : BOOL ;	//Step 3: Move carrier to unload position
+  s_S4_Unload_Carrier : BOOL ;	//Step 4: Unload carrier conveyor
+  s_S5_Move_Carrier_Load : BOOL ;	//Step 5: Move carrier to load position
+END_VAR
+VAR_TEMP
+  t_Available_IO_Below : BOOL ;	//IO available signal for all equipment in the zone
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_DB_Num_PLT_Downstream : INT ;	//Number of the PLT DB of the TRS downstream of the carrier conveyor
+  t_Number_items_Found : INT ;	//Number of -3 items found
+  t_Position_Found : INT ;	//Position found of search function
+  t_DieBack_Position : INT ;	//Die-back position on carrier conveyor
+  t_Info : INT ;	//Info from search function
+  t_Item_in_Dieback_Window : BOOL ;	//Item is on carrier conveyor in dieback window
+  t_PLT_Upstream : INT ;	//PLT DB number of upstream PLT DB
+  t_PLT_Downstream : INT ;	//PLT DB number of downstream PLT DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read required information from PLT DB's
+
+      NOP   0; 
+// Read required information from PLT DB of carrier conveyor
+      OPN   #i_DB_PLT; 
+      L     DBNO; 
+      T     #s_DB_Num_PLT; 
+
+      L     DBW    2; 
+      T     #s_Displacement; 
+
+      L     DBW    8; 
+      T     #t_DB_Num_PLT_Downstream; 
+
+      A     DBX   10.1; 
+      =     #s_Section_Run; 
+
+      A     DBX   10.7; 
+      =     #s_PEC_1; 
+
+      L     DBW   12; 
+      T     #s_Length_Section; 
+
+// Read required information from downstream PLT DB
+      L     #t_DB_Num_PLT_Downstream; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      OPN   DB [#t_DB_Num_PLT_Downstream]; // Open upstream PLT DB
+
+      A     DBX   10.5; 
+      =     #s_Dwnstr_Sec_Operational; 
+
+      A     DBX   11.0; 
+      =     #s_Dwnstr_Inhib_Recv_Item; 
+
+// Read required information from upstream PLT DB
+AA01: OPN   #i_DB_PLT_UpStr; 
+      A     DBX   10.6; 
+      =     #s_Upstr_Item_At_Handover; 
+
+//Write DB number for zone events
+      OPN   "DB_Event_Zone"; 
+      L     DBNO; 
+      T     #s_DB_Event_Zone_nr; 
+
+NETWORK
+TITLE =BA: Handle electrical input statuses 
+
+      NOP   0; 
+// Determine when IO inside the zone is available
+      A     #i_Available_IO; 
+      AN    #i_FieldB_NotPrsnt; 
+      AN    #i_FieldB_Error; 
+      =     #t_Available_IO_Below; 
+
+// Maintenance switch status
+      AN    #i_IO_MS_Automatic_mode; 
+      A     #t_Available_IO_Below; 
+      =     #s_ST_MS_Not_Auto; 
+
+// Reset errors
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO_Below; 
+      R     #s_ST_FieldB_NotPrsnt; 
+      R     #s_ST_FieldB_Error; 
+      R     #s_ST_Clr_Detection_Up; 
+      R     #s_ST_Clr_Detection_Down; 
+      R     #s_ST_Gap_Not_Clear_Dwnst; 
+      R     #s_ST_Gap_Not_Clear_Upst; 
+      R     #s_ST_Safety_Pin; 
+      R     #s_ST_Upper_Hatch; 
+      R     #s_ST_Lower_Hatch; 
+
+// Profibus statuses
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO; 
+      S     #s_ST_FieldB_NotPrsnt; 
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO; 
+      S     #s_ST_FieldB_Error; 
+
+// Clearance detection errors
+      AN    #i_IO_NOT_PEC_Clr_Up; 
+      AN    #s_Mode_Manual; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Clr_Detection_Up; 
+
+      AN    #i_IO_NOT_PEC_Clr_Down; 
+      AN    #s_Mode_Manual; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Clr_Detection_Down; 
+
+// Safety pin detected
+      AN    #i_IO_Safety_Pin; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Safety_Pin; 
+
+// Status of the hatch on the high side of the VDZ
+      AN    #i_IO_Upper_Hatch; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Upper_Hatch; 
+
+// Status of the hatch on the low side of the VDZ
+      AN    #i_IO_Lower_Hatch; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Lower_Hatch; 
+
+//Combine zone erros
+      A     #s_ST_MS_Not_Auto; 
+      O     #s_Mode_Manual; 
+      O     #s_ST_Safety_Pin; 
+      O     #s_ST_Upper_Hatch; 
+      O     #s_ST_Lower_Hatch; 
+      O     #s_ST_FieldB_NotPrsnt; 
+      O     #s_ST_FieldB_Error; 
+      O     #s_ST_Clr_Detection_Up; 
+      O     #s_ST_Clr_Detection_Down; 
+      O     #s_ST_Bag_Overlength; 
+      O     #s_ST_Gap_Not_Clear_Dwnst; 
+      O     #s_ST_Gap_Not_Clear_Upst; 
+      =     #s_Error_On_Zone_Level; 
+
+NETWORK
+TITLE =CA: Handle manual commands
+
+      NOP   0; 
+// Auto mode
+      A     #i_Commands.Auto; 
+      R     #s_Mode_Manual; 
+      R     #s_TRS_Manual_Run; 
+      R     #s_TRS_Manual_Run_REV; 
+
+// Manual mode
+      A     #i_Commands.Manual; 
+      S     #s_Mode_Manual; 
+
+// Semi-Automatic mode up
+      A     #i_Commands.Fixed_Down; 
+      O     #i_Commands.Manual; 
+      O     #i_Commands.Auto; 
+      R     #s_Mode_Semi_Up; 
+
+      A     #i_Commands.Fixed_Up; 
+      AN    #i_Commands.Manual; 
+      S     #s_Mode_Semi_Up; 
+      R     #s_Mode_Semi_Down; 
+      R     #s_Mode_Manual; 
+
+// Semi-Automatic mode down
+      A     #i_Commands.Fixed_Up; 
+      O     #i_Commands.Manual; 
+      O     #i_Commands.Auto; 
+      R     #s_Mode_Semi_Down; 
+
+      A     #i_Commands.Fixed_Down; 
+      AN    #i_Commands.Manual; 
+      S     #s_Mode_Semi_Down; 
+      R     #s_Mode_Semi_Up; 
+      R     #s_Mode_Manual; 
+
+// Manual commands
+      A     #i_Commands.Manual_TRS_Stop; 
+      R     #s_TRS_Manual_Run; 
+      R     #s_TRS_Manual_Run_REV; 
+
+      A     #i_Commands.Manual_TRS_REV; 
+      AN    #i_Commands.Manual_TRS_FWD; 
+      S     #s_TRS_Manual_Run; 
+      S     #s_TRS_Manual_Run_REV; 
+
+      A     #i_Commands.Manual_TRS_FWD; 
+      AN    #i_Commands.Manual_TRS_REV; 
+      S     #s_TRS_Manual_Run; 
+      R     #s_TRS_Manual_Run_REV; 
+
+NETWORK
+TITLE =DA: Determine when loading of a bag is finished
+//When the bag is halted at the dieback position and the upstream Gap PEC is not 
+//triggered the bag loading is finished.
+      NOP   0; 
+// When item is stopped at the dieback position and the upstream gap PEC is not triggerd loading is finished
+      A     #s_Halt_Item_Die_Back_Pos; // IF item is at dieback position
+      AN    #s_GAP_PEC_2; // AND the upstream GAP PEC is NOT triggered
+      =     #s_Bag_Loading_Finished; // Loading of bag is finished
+
+NETWORK
+TITLE =EA: Determine when bag is too long
+//When a bag is loaded onto the carrier and stopped at the dieback position the 
+//upstream Gap PEC should be clear. When the upstream gap PEC is still blocked 
+//when the bag is fully loaded the bag is too long.
+      NOP   0; 
+// SET bag overlength status when the bag has reached the dieback position and the upstream gap PEC is still triggered
+      A(    ; 
+      O     #s_Halt_Item_Die_Back_Pos; // Bag is halted at the dieback position on the carrier conveyor
+      O     #s_GAP_PEC_1; // Or downstream GAP PEC is triggered
+      )     ; 
+      A     #s_GAP_PEC_2; // AND the upstream GAP PEC is triggered
+      S     #s_ST_Bag_Overlength; // SET bag overlength status
+
+// RESET bag overlength error
+      A     #i_CMD_Reset; 
+      AN    #s_PEC_1; // AND downstream PEC is NOT triggered
+      AN    #s_GAP_PEC_1; // AND the upstream and downstream GAP PEC's are NOT triggered
+      AN    #s_GAP_PEC_2; 
+      ON    #t_Available_IO_Below; // OR IO is not available
+      R     #s_ST_Bag_Overlength; // RESET bag overlength status
+
+// When a bag is overlength
+      A     #s_ST_Bag_Overlength; 
+      JCN   EA99; 
+
+//Clear the PLT DB of the carrier conveyor.
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_Event_Num           := #s_DB_Event_Zone_nr);
+
+EA99: NOP   0; 
+
+NETWORK
+TITLE =FA: Handle inhibit receive item in PLT DB of carrier conveyor
+//When the sequencer is not in step 2 (load carrier) the carrier conveyor should 
+//have the inhibit receive item bit in the PLT DB set. When the sequencer is 
+//processing step 2 the carrier conveyor should have the inhibit receive item bit 
+//in the PLT DB resetted to make sure the item on the upstream section is 
+//accepted. RESET inhibit receive item in PLT DB of carrier conveyor to accept 
+//bag waiting upstream.
+      AN    #s_S2_Load_Carrier; // When NOT in load carrier step
+      ON    #s_ST_Down_Pos; // OR carrier is NOT in load position
+      O(    ; 
+      A     #s_TRS_ST_Items; // OR carrier is NOT empty
+      AN    #s_Upstr_Item_At_Handover; 
+      )     ; 
+      =     #s_Inhib_Recv_to_PLT; // Inhibit recieve item in PLT DB of carrier conveyor
+
+// Write inhibit receive item to PLT DB of carrier conveyor
+      OPN   #i_DB_PLT; 
+      A     #s_Inhib_Recv_to_PLT; 
+      =     DBX   11.0; 
+
+NETWORK
+TITLE =GA: Handle allow dieback position
+//When the sequencer is not in step 4 (unload carrier) the item on the carrier 
+//should be halted on the configured dieback position. When the sequencer is 
+//processing step 4 the dieback position should be disabled to make sure the bag 
+//will be unloaded. When the downstream section is ready to recieve an item don't 
+//allow the dieback position to start handover of the item.
+      AN    #s_S4_Unload_Carrier; // When in unload carrier step
+      ON    #s_Dwnstr_Sec_Operational; // OR the downstream section is operational
+      O     #s_Dwnstr_Inhib_Recv_Item; // OR the downstream section is able to receive items
+      =     #s_Allow_Dieback_Position; // Allow dieback position
+
+NETWORK
+TITLE =HA: Sequencer start
+//
+//********************************************************************************
+//*************************** SEQUENCER START ************************************
+//********************************************************************************
+//
+//When a bag arrives at the handover position on the conveyor upstream of the VDZ 
+//the sequencer is started to load the bag, move the carrier to the unloading 
+//position, unload the bag and move the carrier back to the loading position. 
+//During loading the bag length is checked and during unloading the bag presence 
+//is checked. 
+//
+//Also determine when homing needs to be done and when the initialization routine 
+//needs to be executed.
+//
+//       /----------\                     
+//      /   Homing   \   no               
+//     (   routine    )---------+         
+//      \    done    /          |         
+//       \----------/           V         
+//            |         +----------------+
+//        yes |         |     STEP 0     |
+//            |         | Homing routine |
+//            V         +----------------+
+//       /----------\           |         
+//      / Initialize \   no     |         
+//     (   routine    )-------->|         
+//      \    done    /          |         
+//       \----------/           V         
+//            |         +----------------+
+//        yes |         |     STEP 1     |
+//            |         |   Initialize   |
+//            |         |     routine    |
+//            |         +----------------+
+//            |                 |         
+//            |                 V         
+//            |            /----------\         
+// +--------->|           /    Bag     \   no   
+// |          V          (   present    )------+
+// |  +----------------+  \            /       |
+// |  |     STEP 2     |   \----------/        |
+// |  |  Load routine  |        |              |
+// |  +----------------+        | yes          |
+// |          |<----------------+              |
+// |          V                                |
+// |  +----------------+                       |
+// |  |     STEP 3     |                       |
+// |  | Move to unload |                       |
+// |  |    position    |                       |
+// |  +----------------+                       |
+// |          |                                |
+// |          V                                |
+// |  +----------------+                       |
+// |  |     STEP 4     |                       |
+// |  | Unload routine |                       |
+// |  +----------------+                       |
+// |          |<-------------------------------+
+// |          V         
+// |  +----------------+
+// |  |     STEP 5     |
+// |  |  Move to load  |
+// |  |    position    |
+// |  +----------------+
+// |          |         
+// +----------+         
+      NOP   0; 
+// Reset stepped in this scan every PLC cycle
+      SET   ; 
+      R     #s_Stepped_In_This_Scan; 
+
+// Initialization of the sequencer
+      AN    #s_S0_Homing; 
+      AN    #s_S1_Initialize; 
+      AN    #s_S2_Load_Carrier; 
+      AN    #s_S3_Move_Carrier_Unload; 
+      AN    #s_S4_Unload_Carrier; 
+      AN    #s_S5_Move_Carrier_Load; 
+      S     #s_S0_Homing; 
+
+
+// Make sure homing routine is executed when
+      AN    #t_Available_IO_Below; 
+      O     #s_SWS_Error; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_Semi_Up; 
+      O     #s_Mode_Semi_Down; 
+      R     #s_Homing_Done; 
+
+// When not homed goto: [STEP 0 Homing]
+      AN    #s_ST_Homing_Done; 
+      R     #s_S1_Initialize; 
+      R     #s_S2_Load_Carrier; 
+      R     #s_S3_Move_Carrier_Unload; 
+      R     #s_S4_Unload_Carrier; 
+      R     #s_S5_Move_Carrier_Load; 
+      S     #s_S0_Homing; 
+
+
+// Make sure initialization routine is executed when
+      AN    #t_Available_IO_Below; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_Semi_Up; 
+      O     #s_Mode_Semi_Down; 
+      R     #s_Initialization_Done; 
+
+// When not initialized and homing is already done goto: [STEP 1 Initialize] 
+      AN    #s_Initialization_Done; 
+      A     #s_Homing_Done; 
+      R     #s_S0_Homing; 
+      R     #s_S2_Load_Carrier; 
+      R     #s_S3_Move_Carrier_Unload; 
+      R     #s_S4_Unload_Carrier; 
+      R     #s_S5_Move_Carrier_Load; 
+      S     #s_S1_Initialize; 
+
+// Reset bits used in initialization step when not in this step.
+      AN    #s_S1_Initialize; 
+      R     #s_Write_Esave_Code; 
+      R     #s_TRS_Occupied_Init; 
+      R     #s_TRS_In_Reverse; 
+
+NETWORK
+TITLE =IA: Step 0: Homing
+//The encoder on the motor needs to be homed to a fixed position. This homing 
+//routine is executed by the frequency controller.
+      A     #s_S0_Homing; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // AND the step transition is not made in this PLC cycle
+      JCN   IA99; 
+
+      A     #s_ST_Homing_Done; 
+      =     #s_Homing_Done; // SET homing done bit
+
+// When homing routine is done and initialization is also done goto: [STEP 1 Initialize]  
+      A     #s_Homing_Done; 
+      JCN   IA99; 
+
+      R     #s_S0_Homing; // Handle next step in next PLC cycle
+      S     #s_S1_Initialize; 
+      S     #s_Stepped_In_This_Scan; 
+
+IA99: NOP   0; 
+
+NETWORK
+TITLE =IB: Step 1: Initialize
+//In the initialize routine the carrier conveyor will run in reverse for one full 
+//conveyor length. When a bag is detected during the reverse run the bag will be 
+//positioned and the sequencer will continue with step 3 (move to unload 
+//position). When no bag is detected during the reverse run the sequencer will 
+//continue with step 5 (move to load position).
+      A     #s_S1_Initialize; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // AND the step transition is not made in this PLC cycle
+      JCN   IB99; 
+
+// Make sure carrier conveyor runs in reverse for one full conveyor length
+      S     #s_TRS_In_Reverse; 
+      S     #s_Write_Esave_Code; 
+
+// When one of the upstream PEC's detects an item
+      A     #s_PEC_2; 
+      O     #s_GAP_PEC_2; 
+      R     #s_TRS_In_Reverse; // RESET reverse direction
+      S     #s_TRS_Occupied_Init; // SET TRS is occupied during initialization
+
+// When section stopped running initialization is done  
+      AN    #s_Section_Run; 
+      O(    ; 
+      A     "DB_Setting".common.Disable_Energy_Saving; 
+      AN    #s_Esave_Code_Present; 
+      )     ; 
+      S     #s_Initialization_Done; 
+
+// When initialization is done goto other step
+      A     #s_Initialization_Done; 
+      JCN   IB99; 
+
+      R     #s_TRS_In_Reverse; 
+      R     #s_S1_Initialize; // Handle next step in next PLC cycle
+      R     #s_Write_Esave_Code; 
+      S     #s_Stepped_In_This_Scan; 
+
+// When initialization is done and carrier has items goto: [STEP 3 move to unload position]
+      A     #s_TRS_Occupied_Init; 
+      S     #s_S3_Move_Carrier_Unload; 
+// When initialization is done and carrier has NO items goto: [STEP 5 move to load position]
+      AN    #s_TRS_Occupied_Init; 
+      S     #s_S5_Move_Carrier_Load; 
+
+// Reset TRS occupied when going to next step
+      R     #s_TRS_Occupied_Init; 
+
+IB99: NOP   0; 
+
+NETWORK
+TITLE =IC: Step 2: Load carrier conveyor
+//When the empty carrier reached the load position and a bag is waiting upstream 
+//to be loaded the bag will be loaded onto the carrier.
+      A     #s_S2_Load_Carrier; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // AND the step transition is not made in this PLC cycle
+      JCN   IC99; 
+
+// When finished with loading bag goto: [STEP 3 move to unload position]
+      A     #s_Bag_Loading_Finished; // IF bag is loaded
+      AN    #s_ST_Bag_Overlength; // AND bag is NOT overlength
+      JCN   IC99; // Go to next step
+
+      R     #s_S2_Load_Carrier; // Handle next step in next PLC cycle
+      S     #s_S3_Move_Carrier_Unload; 
+      S     #s_Stepped_In_This_Scan; 
+
+IC99: NOP   0; 
+
+NETWORK
+TITLE =ID: Step 3: Move carrier to unload position
+//When the carrier is loaded it can be moved to the unload position.
+      A     #s_S3_Move_Carrier_Unload; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // AND the step transition is not made in this PLC cycle
+      JCN   ID99; 
+
+// Move to unload position in UP direction
+      AN    #s_GAP_PEC_1; // AND gap PEC's on carrier conveyor are NOT triggerd
+      AN    #s_GAP_PEC_2; 
+      S     #s_Req_Dir_Up; 
+
+// When carrier reached the unload position goto: [STEP 4 unload carrier]
+      A     #s_ST_Up_Pos; // IF unload position is reached
+      JCN   ID99; // If not Hold sequencer in current step
+
+      R     #s_S3_Move_Carrier_Unload; // Handle next step in next PLC cycle
+      S     #s_S4_Unload_Carrier; 
+      S     #s_Stepped_In_This_Scan; 
+
+ID99: NOP   0; 
+
+NETWORK
+TITLE =IE: Step 4: Unload carrier conveyor(s)
+//When the carrier reached the unload position and the downstream section is 
+//ready to recieve a bag the bag will be unloaded from the carrier.
+      A     #s_S4_Unload_Carrier; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // AND the step transition is not made in this PLC cycle
+      JCN   IE99; 
+
+      AN    #s_TRS_ST_Items; // When there are NO items on the carrier conveyor
+      AN    #s_GAP_PEC_1; // AND the downstream Gap PEC is not triggered
+      A     #i_TRS_IO_NOT_PEC_1; // AND check whether all PEC are cleared
+      A     #i_TRS_IO_NOT_PEC_2; 
+      JCN   IE99; // If not Hold sequencer in current step
+
+      R     #s_S4_Unload_Carrier; // Handle next step in next PLC cycle
+      S     #s_S5_Move_Carrier_Load; 
+      S     #s_Stepped_In_This_Scan; 
+
+IE99: NOP   0; 
+
+NETWORK
+TITLE =IF: Step 5: Move carrier to load position
+//When the carrier is empty again it can be moved to the load position.
+      A     #s_S5_Move_Carrier_Load; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // AND the step transition is not made in this PLC cycle
+      JCN   IF99; 
+
+// When the bag is not missing move to load position in DOWN direction
+      AN    #s_GAP_PEC_1; // AND gap PEC's on carrier conveyor are NOT triggerd
+      AN    #s_GAP_PEC_2; 
+      R     #s_Req_Dir_Up; 
+
+// When carrier reached the load position goto: [STEP 2 load carrier]
+      A     #s_ST_Down_Pos; // AND Carrier conveyor is in the load position
+      JCN   IF99; // If not Hold sequencer in current step
+
+      R     #s_S5_Move_Carrier_Load; // Handle next step in next PLC cycle
+      S     #s_S2_Load_Carrier; 
+      S     #s_Stepped_In_This_Scan; 
+
+IF99: NOP   0; 
+
+NETWORK
+TITLE =JA: Equipment Switch Motor S1 (controlled by a Movidrive)
+
+      NOP   0; 
+// Enable SWS when there are no errors
+      A     #s_Initialization_Done; 
+      O     #s_Error_On_Zone_Level; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_SWS_Req_Stop; 
+
+// Determine when switch UP request is made and SWS is not in semi auto mode.
+      A(    ; 
+      A     #s_Req_Dir_Up; 
+      AN(   ; 
+      O     #s_Mode_Semi_Up; 
+      O     #s_Mode_Semi_Down; 
+      )     ; 
+      )     ; 
+      O     #s_Mode_Semi_Up; 
+      =     #s_Req_Dir_B; 
+
+      CALL #s_SWS_EQP_Switch_MVD (
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Manual_Mode        := #s_Mode_Manual,
+           i_CMD_Manual_High        := #i_Commands.Manual_Up,
+           i_CMD_Manual_Low         := #i_Commands.Manual_Down,
+           i_Safety_OK              := #i_Safety_OK,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_CMD_High_Position      := #s_Req_Dir_B,
+           i_LADDR_MVDRV            := #i_CFG_SWS_IO_StartAddr,
+           i_CFG_Position_Up        := #i_CFG_SWS_Position_Up,
+           i_CFG_Position_Down      := #i_CFG_SWS_Position_Dwn,
+           i_CFG_Default_Speed      := #i_CFG_SWS_Speed,
+           i_CFG_Homing_Speed       := #i_CFG_SWS_Homing_Speed,
+           i_CFG_Timeout_Pos_High   := #i_CFG_SWS_Time_Out_Up,
+           i_CFG_Timeout_Pos_Low    := #i_CFG_SWS_Time_Out_Down,
+           i_Ext_Req_Stop           := #s_SWS_Req_Stop,
+           i_Ext_Req_Halt           := #i_Ext_Req_Halt,
+           o_Ready_To_Restart       := #s_SWS_Ready_To_Restart,
+           o_ST_Running             := #o_SWS_ST_Running,
+           o_ST_Started             := #o_SWS_ST_Started,
+           o_ST_Homing_Done         := #s_ST_Homing_Done,
+           o_ST_Down_Time_Out       := #o_SWS_ST_Time_Out_Down,
+           o_ST_Up_Time_out         := #o_SWS_ST_Time_Out_Up,
+           o_ST_Position_is_Up      := #s_ST_Up_Pos,
+           o_ST_Position_is_Down    := #s_ST_Down_Pos,
+           o_ST_LS_Limit_Up         := #o_SWS_ST_LS_Up,
+           o_ST_LS_Limit_Down       := #o_SWS_ST_LS_Down,
+           o_ST_Mvdrv_Comm_Error    := #o_SWS_ST_Comm_Not_OK,
+           o_ST_Mvdrv_Error         := #o_SWS_ST_Error,
+           o_ST_Mvdrv_Warning       := #o_SWS_ST_Warning);
+
+// Determine when the SWS has an error
+      A     #o_SWS_ST_Comm_Not_OK; 
+      O     #o_SWS_ST_Error; 
+      =     #s_SWS_Error; 
+
+      CALL #s_FB_DAT_SWS (
+           i_ID_Section             := #i_SWS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =KA: Write energy save code on section length
+
+      NOP   0; 
+// Only execute function when in initialization mode or when reqeust to write -3 is present
+      A     #s_S1_Initialize; 
+      O     #s_Write_Esave_Code; 
+      JCN   KA99; 
+
+// Search for E-save code [-3]
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #s_Length_Section,
+           i_Window                 := #s_Length_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Position_Found,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Number_items_Found);
+
+      L     #t_Number_items_Found; 
+      L     0; 
+      >I    ; 
+      =     #s_Esave_Code_Present; 
+
+// On positive flank of request to write e-save code
+      A     #s_Write_Esave_Code; 
+      FP    #s_FP_Write_Esave_Code; 
+      JCN   KA99; 
+
+// If position found > 0 then remove the code
+      L     #t_Position_Found; 
+      L     0; 
+      >I    ; 
+      JCN   KA01; 
+
+// Remove -3 from PLT DB of carrier conveyor
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #t_Position_Found,
+           i_Info_Physical          := -3,
+           i_DB_Event_Num           := #s_DB_Event_Zone_nr);
+
+// Write -3 on section length in PLT DB of carrier conveyor
+KA01: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #s_Length_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #s_DB_Event_Zone_nr);
+
+KA99: NOP   0; 
+
+NETWORK
+TITLE =LA: Halt carrier conveyor before the end of the section
+//When a bag is loaded the bag must stop on a configurable dieback position 
+//instead of the end of the conveyor to make sure the bag won't fall off the 
+//carrier conveyor during up or down movement.
+      L     #i_CFG_TRS_Run_Out; 
+      L     #i_CFG_TRS_DieBack_Pos; 
+      +I    ; 
+      T     #t_DieBack_Position; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #t_DieBack_Position,
+           i_Window                 := #t_DieBack_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #t_Item_in_Dieback_Window; 
+
+      A     #s_Allow_Dieback_Position; // IF item is allowed to be halted at the dieback position
+      A     #t_Item_in_Dieback_Window; // AND item is in dieback window
+      =     #s_Halt_Item_Die_Back_Pos; // Hold item at dieback position
+
+NETWORK
+TITLE =MA: Equipment calls for carrier conveyor
+//Description of the carrier conveyor:                                            
+//        _          _                      _          _          
+//        |          |                      |          |          
+//      +-+----------+----------------------+----------+-+        
+//      | |          |  ---- Forward ---->  |          | |        
+//Upstr | |          |                      |          | | Downstr
+//      | |          |  <--- Reverse -----  |          | |        
+//      +-+----------+----------------------+----------+-+        
+//        |          |                      |          |          
+//        ^          ^                      ^          ^          
+//     Gap PEC 2    PEC 2                  PEC 1    Gap PEC 1     
+//
+      NOP   0; 
+// Combine input and static to reverse command
+      A     #i_CMD_Reverse; 
+      O     #s_TRS_In_Reverse; 
+      =     #s_CMD_Reverse; 
+
+      A     #s_CMD_Reverse; //Create one shot of the positive flank
+      FP    #s_FP_Forward_Command; 
+      O(    ; 
+      A     #s_CMD_Reverse; //Create one shot of the negative flank
+      FN    #s_FP_Reverse_Command; 
+      )     ; 
+      =     #s_OS_Direction_Change; 
+
+// Swap PLT DB on direction change
+      A     #s_OS_Direction_Change; 
+      JCN   MA01; 
+
+      CALL "FC_PLT_SWAP_DB" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT);
+
+// Equipment layer downstream PEC on the carrier conveyor
+MA01: CALL #s_TRS_EQP_PEC_1 (
+           i_Setting                := #i_TRS_Setting.PEC_1_2D,
+           i_DB_PLT                 := #i_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 10,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS_IO_NOT_PEC_1,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_CMD_Reverse,
+           o_LPOS                   := #s_TRS_Int_Prog.LPOS_FWD,
+           o_PEC_Position           := #s_TRS_Int_Prog.PEC_Offset_Forward,
+           o_ST_PEC_Blk             := #o_TRS_ST_PEC_Blk);
+
+// Equipment layer upstream PEC on the carrier conveyor
+      CALL #s_TRS_EQP_PEC_2 (
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_TRS_IO_NOT_PEC_2,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #s_Displacement,
+           o_ST_PEC_Blk             := #o_TRS_ST_PEC2_Blk,
+           o_PEC_Flap_Filter        := #s_PEC_2);
+
+// Equipment layer downstream GAP PEC on the carrier conveyor
+      CALL #s_TRS_EQP_GAP_PEC_1 (
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_TRS_IO_NOT_PEC_Gap1,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #s_Displacement,
+           o_ST_PEC_Blk             := #o_TRS_ST_PEC_Gap_Blk,
+           o_PEC_Flap_Filter        := #s_GAP_PEC_1);
+
+// Equipment layer upstream GAP PEC on the carrier conveyor
+      CALL #s_TRS_EQP_GAP_PEC_2 (
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_TRS_IO_NOT_PEC_Gap2,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #s_Displacement,
+           o_ST_PEC_Blk             := #o_TRS_ST_PEC2_Gap_Blk,
+           o_PEC_Flap_Filter        := #s_GAP_PEC_2);
+
+// Handle status for Gap PEC's on carrier conveyor
+      AN    #s_S4_Unload_Carrier; 
+      AN    #s_ST_Bag_Overlength; 
+      A     #s_GAP_PEC_1; 
+      AN    #s_Mode_Manual; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Gap_Not_Clear_Dwnst; 
+
+      AN    #s_S2_Load_Carrier; 
+      AN    #s_ST_Bag_Overlength; 
+      A     #s_GAP_PEC_2; 
+      AN    #s_Mode_Manual; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Gap_Not_Clear_Upst; 
+
+//Determine PEC offset
+      AN    #s_CMD_Reverse; 
+      JCN   MA02; 
+
+      L     #s_TRS_Int_Prog.PEC_Offset_Forward; 
+      T     #s_TRS_PEC_Offset; 
+      JU    MA03; 
+
+MA02: L     #s_TRS_Int_Prog.PEC_Offset_Reverse; 
+      T     #s_TRS_PEC_Offset; 
+
+MA03: L     #s_TRS_PEC_Offset; 
+      T     #o_TRS_PEC_Offset; 
+
+// Request stop
+      A     #s_Error_On_Zone_Level; 
+      O     #o_TRS_ST_PEC_Blk; 
+      O     #o_TRS_ST_PEC2_Blk; 
+      O     #o_TRS_ST_PEC_Gap_Blk; 
+      O     #o_TRS_ST_PEC2_Gap_Blk; 
+      O     #o_TRS_ST_PEC_Miss; 
+      O     #o_TRS_ST_THO; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_TRS_Req_Stop; 
+
+      A     #s_Halt_Item_Die_Back_Pos; 
+      O     #i_Ext_Req_Halt; 
+      =     #s_TRS_Req_Halt; 
+
+// Equipment layer basic function
+      CALL #s_TRS_EQP_BASIC (
+           i_ID_Section             := #i_ID,
+           i_Setting                := #i_TRS_Setting.Basic_FWD,
+           i_DB_PLT                 := #i_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_CFG_TRS_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_TRS_Run_Out,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_CFG_Minimum_Gap        := 0,
+           i_CFG_Add_Gap_Stop       := 0,
+           i_CFG_Minimum_H2H        := 0,
+           i_CFG_Add_H2H_Stop       := 0,
+           i_CFG_Cascade_Delay_Time := 0,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_TRS_PEC_Offset,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS_Req_Stop,
+           i_Ext_Req_Halt           := #s_TRS_Req_Halt,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #i_Ext_Req_Rst_ESave,
+           i_OS_Direction_Change    := #s_OS_Direction_Change,
+           o_External               := #o_TRS_EXT_Outputs,
+           o_Motor_Run              := #s_TRS_Int_Prog.Motor_Run,
+           o_ST_Items               := #s_TRS_ST_Items,
+           o_ST_Running             := #o_TRS_ST_Running,
+           o_ST_Started             := #o_TRS_ST_Started,
+           o_ST_Request_Halt        := #o_TRS_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS_Ready_To_Restart);
+
+      A     #s_TRS_ST_Items; 
+      =     #o_TRS_ST_Items; 
+
+      CALL #s_TRS_TRK_Track (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS_Int_Prog.PEC_Offset_Forward,
+           i_LPOS                   := #s_TRS_Int_Prog.LPOS_FWD,
+           i_Setting                := #i_TRS_Setting.Track_FWD,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_CFG_TRS_Default_Rec,
+           i_OS_Direction_Change    := #s_OS_Direction_Change,
+           o_ST_PEC_Miss            := #o_TRS_ST_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS_ST_Bad_Update);
+
+// Hardware layer
+      CALL #s_TRS_MTR_MS_2_Dir (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 3000,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_TRS_Int_Prog.Motor_Run,
+           i_CMD_Req_Motor_Reverse  := #s_CMD_Reverse,
+           i_CMD_Manual_Mode        := #s_Mode_Manual,
+           i_CMD_Manual_Run         := #s_TRS_Manual_Run,
+           i_CMD_Manual_Reverse     := #s_TRS_Manual_Run_REV,
+           o_IO_MTR_Fwd             := #o_TRS_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_TRS_IO_MTR_Rev,
+           o_ST_THO                 := #o_TRS_ST_THO,
+           o_Req_Halt               := #s_TRS_Int_Prog.HW_Request_Halt);
+
+// Data Layer
+      CALL #s_FB_DAT_TRS (
+           i_ID_Section             := #i_TRS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =NA: Link PLT DB's to carrier conveyor
+//When the carrier is not in the UP position and not in the DOWN position the 
+//upstream and the downstream PLT DB's should NOT be connected to make sure not 
+//items will be handed over while not in position. When the carrier is in the 
+//DOWN position the upstream PLT DB should be connected and the downstream PLT DB 
+//should NOT be connected. When the carrier is in the up position the downstream 
+//PLT DB should be connected and the upstream PLT DB should NOT be connected.
+      NOP   0; 
+// Transfer PLT DB numbers of upstream and downstream PLT DB's to temp
+      OPN   #i_DB_PLT_UpStr; 
+      L     DBNO; 
+      T     #t_PLT_Upstream; 
+
+      OPN   #i_DB_PLT_DwnStr; 
+      L     DBNO; 
+      T     #t_PLT_Downstream; 
+
+// Open the PLT DB of the carrier conveyor to assign the upstream and downstream PLT DB's
+      OPN   #i_DB_PLT; 
+
+// When in the up position
+      A     #s_ST_Up_Pos; 
+      JCN   NA01; 
+
+      L     0; 
+      T     DBW    6; 
+
+      L     #t_PLT_Downstream; 
+      T     DBW    8; 
+      JU    NA99; 
+
+// When in the down position
+NA01: A     #s_ST_Down_Pos; 
+      JCN   NA02; 
+
+      L     #t_PLT_Upstream; 
+      T     DBW    6; 
+
+      L     0; 
+      T     DBW    8; 
+      JU    NA99; 
+
+// Otherwise clear upstream and downstream PLT numbers in PLT DB of carrier conveyor
+NA02: L     0; 
+      T     DBW    6; 
+      T     DBW    8; 
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Write zone status and outputs
+
+      A     #s_Mode_Manual; 
+      =     #o_ST_Manual; 
+
+      A     #s_ST_Up_Pos; 
+      =     #o_ST_Up; 
+
+      A     #s_ST_Down_Pos; 
+      =     #o_ST_Down; 
+
+      A     #s_ST_MS_Not_Auto; 
+      =     #o_ST_MS_Not_Automatic; 
+
+      A     #s_ST_FieldB_NotPrsnt; 
+      =     #o_ST_FieldB_NotPrsnt; 
+
+      A     #s_ST_FieldB_Error; 
+      =     #o_ST_FieldB_Error; 
+
+      A     #s_ST_Clr_Detection_Up; 
+      =     #o_ST_Clr_Detection_Up; 
+
+      A     #s_ST_Clr_Detection_Down; 
+      =     #o_ST_Clr_Detection_Down; 
+
+      A     #s_ST_Bag_Overlength; 
+      =     #o_ST_Bag_Overlength; 
+
+      A     #s_ST_Gap_Not_Clear_Dwnst; 
+      =     #o_TRS_ST_Gap_Not_Clr_Dwn; 
+
+      A     #s_ST_Gap_Not_Clear_Upst; 
+      =     #o_TRS_ST_Gap_Not_Clr_Ups; 
+
+      A     #s_ST_Safety_Pin; 
+      =     #o_ST_Safety_Pin; 
+
+      A     #s_ST_Upper_Hatch; 
+      =     #o_ST_Upper_Hatch; 
+
+      A     #s_ST_Lower_Hatch; 
+      =     #o_ST_Lower_Hatch; 
+
+      A     #s_Mode_Semi_Up; 
+      =     #o_ST_Fixed_Up; 
+
+      A     #s_Mode_Semi_Down; 
+      =     #o_ST_Fixed_Down; 
+
+      A     #s_SWS_Ready_To_Restart; 
+      O     #s_TRS_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+
+      AN    #s_Error_On_Zone_Level; 
+      A     #o_SWS_ST_Started; 
+      A     #o_TRS_ST_Started; 
+      AN    #s_ST_Up_Pos; 
+      AN    #s_ST_Down_Pos; 
+      =     #o_Action_Active; 
+
+END_FUNCTION_BLOCK
+

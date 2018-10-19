@@ -1,0 +1,1339 @@
+FUNCTION_BLOCK "FB_MGZ_2D_Trk_Temp"
+TITLE =%version: 1.06 % CN: 60 
+//Function:
+//This template contains a MGZ/CLZ with 3 bi-directional tracking conveyors 
+//which can be stripped till one merge conveyor, or merge conveyors can be added 
+//by using this template.
+//
+//Description:
+//When stripping the template to one or two merge conveyors all the inputs, 
+//outputs and statics of the not used conveyor(s) can be deleted. The next step is
+// 
+//to delete all the networks which where used for those conveyors (TRS 2 / TRS 3).
+//The last step is to check all the networks which are left over and follow the 
+//"EDIT" instructions.
+//
+//When a merge conveyor needs to be added all inputs, outputs and statics of the 
+//last conveyor (TRS3) need to be copied and renamed with the next TRS number 
+//(TRS4). 
+//The next step is to copy all the networks which are used for TRS3 and all used 
+//symbols has to be modified for the next conveyor. The last step is to check all 
+//the networks from the original last conveyor untill the new last conveyor for 
+//the "EDIT" instructions.
+//
+//View from above (conveyor):
+//                                                          
+//     |          TRS 2          |        |          TRS 1          | 
+// +---+-------------------------+---++---+-------------------------+---+
+// |   |   <--- Reverse -----    |   ||   |   ---- Forward ---->    |   |         
+// |   |       SLAVE(FWD)        |   ||   |       MASTER(FWD)       |   |  
+// |   |       MASTER(REV)       |   ||   |       SLAVE(REV)        |   |  
+// +---+-------------------------+---++---+-------------------------+---+
+//     |                         |        |                         |             
+//     ^                         ^        ^                         ^  
+//PEC upstream        PEC downstream    PEC upstream        PEC downstream
+// 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:45:52 %
+//              %release: ECS_General_PLC/dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.06
+//21849: Add default record on track block              nlHdL    25-11-14   1.06
+//18028: Modify HardWare block LMS for Eaton Siemens    nlHdL    08-05-14   1.05
+//12269: CFG_Record_Type removed. Default LNK           nlHdL    09-01-14   1.04
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//PR14161 Update violation coding convention 9          nlple    26-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.01 of PLT version 0
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Reverse : BOOL ;	//CMD: Reverse command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CMD_Capacity : INT  := 1200;	//CMD: [items/hour] Capacity
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CFG_Min_Capacity : INT  := 300;	//CFG: [items/hour] Minimum Capacity
+  i_CFG_Max_Capacity : INT  := 1800;	//CFG: [items/hour] Maximum Capacity
+  i_CFG_Merge_In_Flow : BOOL ;	//CFG: Merge conveyor is used in flow
+  i_DB_Reservation : BLOCK_DB ;	//Data Structure: reservation DataBlock
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_PLT_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock Upstream section
+  i_TRS1_Setting : "UDT_TRS_Trk2dir_Sett";	//Data Structure: Setting Record TRS1: Setting Record TRS1: Setting Record TRS1
+  i_TRS1_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS1_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+  i_TRS1_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS1_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS1_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS1_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_TRS1_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS1_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS1_ASI_NotPrsnt : BOOL ;	//ASI is Not Present
+  i_TRS1_ASI_Error : BOOL ;	//ASI has an Error
+  i_TRS1_IO_NOT_PEC_1 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS1_IO_NOT_PEC_2 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS1_IO_PPI : BOOL ;	//HW: The PPI signal
+  i_TRS1_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS1_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_TRS2_Setting : "UDT_TRS_Trk2dir_Sett";	//Data Structure: Setting Record TRS2: Setting Record TRS2: Setting Record TRS2
+  i_TRS2_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS2_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS2
+  i_TRS2_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS2_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS2_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS2_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_TRS2_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS2_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS2_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_TRS2_ASI_Error : BOOL ;	//ASI: Slave has an Error
+  i_TRS2_IO_NOT_PEC_1 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS2_IO_NOT_PEC_2 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS2_IO_PPI : BOOL ;	//HW: The PPI signal
+  i_TRS2_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS2_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_TRS3_Setting : "UDT_TRS_Trk2dir_Sett";	//Data Structure: Setting Record TRS3: Setting Record TRS3: Setting Record TRS3
+  i_TRS3_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS3_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS3
+  i_TRS3_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS3_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS3_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS3_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_TRS3_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS3_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS3_ASI_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS3_ASI_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS3_IO_NOT_PEC_1 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS3_IO_NOT_PEC_2 : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS3_IO_PPI : BOOL ;	//HW: The PPI signal
+  i_TRS3_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS3_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+END_VAR
+VAR_OUTPUT
+  o_Capacity : INT ;	//Actual Value Capacity [items per hour] 
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_TRS1_IO_MTR_FWD : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS1_IO_MTR_REV : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS1_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_TRS1_PEC_Offset : INT ;	//Offset from PEC update Trigger
+  o_TRS1_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS1_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS1_ST_Started : BOOL ;	//ST: Started
+  o_TRS1_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS1_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS1_ST_LMS_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS1_ST_LMS_Error : BOOL ;	//ST: ASI slave has an error
+  o_TRS1_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS1_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_TRS1_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS1_ST_ASI_Error : BOOL ;	//ASI has an Error
+  o_TRS1_ST_PEC1_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS1_ST_PEC2_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS1_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS1_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS2_IO_MTR_FWD : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS2_IO_MTR_REV : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS2_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_TRS2_PEC_Offset : INT ;	//Offset from PEC update Trigger
+  o_TRS2_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS2_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS2_ST_Started : BOOL ;	//ST: Started
+  o_TRS2_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS2_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS2_ST_LMS_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS2_ST_LMS_Error : BOOL ;	//ST: ASI slave has an error
+  o_TRS2_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS2_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_TRS2_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS2_ST_ASI_Error : BOOL ;	//ST: ASI has an Error
+  o_TRS2_ST_PEC1_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS2_ST_PEC2_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS2_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS2_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS3_IO_MTR_FWD : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS3_IO_MTR_REV : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS3_PEC_Offset : INT ;	//Offset from PEC update Trigger
+  o_TRS3_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS3_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS3_ST_Started : BOOL ;	//ST: Started
+  o_TRS3_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS3_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS3_ST_LMS_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS3_ST_LMS_Error : BOOL ;	//ST: ASI slave has an error
+  o_TRS3_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS3_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_TRS3_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS3_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_TRS3_ST_PEC1_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS3_ST_PEC2_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS3_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS3_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+END_VAR
+VAR
+  s_Window_Generator : "FB_Window_Generator";	//Block call static FB_Window_Generator
+  s_TRS1_FB_Switch_Dir : "FB_EQP_Switch_Dir";	//Block call static FB_EQP_Switch_Dir
+  s_TRS1_FB_PEC_2Dir_EOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS1_FB_PEC_2Dir_SOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS1_FB_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS1_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS1_TRK_Track_FWD : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS1_TRK_Track_REV : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS1_FB_HW_MTR_2D_LMS : "FB_HW_MTR_2DIR_LMS";	//Block call static FB_HW_MTR_LMS
+  s_TRS1_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS1_Int_Prog : "UDT_TRS_2Dir_Int_Pr";	//Internal programming for TRS1
+  s_TRS1_EXT : "UDT_External";	//External programming for TRS1
+  s_TRS2_FB_Switch_Dir : "FB_EQP_Switch_Dir";	//Block call static FB_EQP_Switch_Dir
+  s_TRS2_FB_PEC_2Dir_EOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS2_FB_PEC_2Dir_SOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS2_FB_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS2_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS2_TRK_Track_FWD : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS2_TRK_Track_REV : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS2_FB_HW_MTR_2D_LMS : "FB_HW_MTR_2DIR_LMS";	//Block call static FB_HW_MTR_LMS
+  s_TRS2_DAT_SAC : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS2_Int_Prog : "UDT_TRS_2Dir_Int_Pr";	//Internal programming for TRS2
+  s_TRS2_EXT : "UDT_External";	//External programming for TRS2
+  s_TRS3_FB_Switch_Dir : "FB_EQP_Switch_Dir";	//Block call static FB_EQP_Switch_Dir
+  s_TRS3_FB_PEC_2Dir_EOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS3_FB_PEC_2Dir_SOS : "FB_EQP_PEC_2Dir";	//Block call static FB_EQP_PEC
+  s_TRS3_FB_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS3_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS3_TRK_Track_FWD : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS3_TRK_Track_REV : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS3_FB_HW_MTR_2D_LMS : "FB_HW_MTR_2DIR_LMS";	//Block call static FB_HW_MTR_LMS
+  s_TRS3_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS3_Int_Prog : "UDT_TRS_2Dir_Int_Pr";	//Internal programming for TRS3
+  s_TRS3_EXT : "UDT_External";	//External programming for TRS1
+  s_MGZ_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS1_Tl_Offset : INT ;	//Position of the beginning of the conveyor
+  s_TRS1_Search_Position : INT ;	//Search window to check items at a delayed start-up
+  s_TRS1_DB_PLT_Nr : INT ;	//PLT DB number of the conveyor
+  s_TRS1_Section_Length : INT ;	//Section length of TRS1
+  s_TRS1_Delay_Start : BOOL ;	//Delayed start set for next startup
+  s_TRS1_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS2_Delay_Start : BOOL ;	//Delayed start set for next startup
+  s_TRS2_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS3_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_TRS2_Tl_Offset : INT ;	//Position of the beginning of the conveyor
+  s_TRS2_Search_Position : INT ;	//Search window to check items at a delayed start-up
+  s_TRS2_DB_PLT_Nr : INT ;	//PLT DB number of the conveyor
+  s_TRS2_Section_Length : INT ;	//Section length of TRS2
+  s_TRS3_Tl_Offset : INT ;	//Position of the beginning of the conveyor
+  s_TRS3_Search_Position : INT ;	//Search window to check items at a delayed start-up
+  s_TRS3_DB_PLT_Nr : INT ;	//PLT DB number of the conveyor
+  s_TRS3_Section_Length : INT ;	//Section length of TRS2
+  s_Calculated_H2H_Length : INT ;	//calculated head to head length
+  s_Capacity_Actual_Value : INT ;	//Capacity [items per hour] Actual Value
+  s_Search_Window : INT ;	//Calculated length of search window
+  s_TRS3_Delay_Start : BOOL ;	//Delayed start set for next startup
+  s_Disable_Calculate_H2H : BOOL ;	//disable calculation of head to head length
+END_VAR
+VAR_TEMP
+  t_INT_Not_Used : INT ;	//Not used integer output
+  t_Number_Items_Found : INT ;	//Number of Items found at search functions
+  t_BOOL_Not_Used : BOOL ;	//Not used boolean output
+  t_TRS_Start_Up_Dist : INT ;	//Calculated start-up distance = run-out / 2
+  t_TRS1_Available_IO : BOOL ;	//Temp TRS1 for indication IO is OK (no Fieldbus or IO error)
+  t_TRS2_Available_IO : BOOL ;	//Temp TRS2 for indication IO is OK (no Fieldbus or IO error)
+  t_TRS3_Available_IO : BOOL ;	//Temp TRS3 for indication IO is OK (no Fieldbus or IO error)
+  t_TRS1_Setting : "UDT_EQP_Basic_Sett";	//Temp setting TRS1 basic offset
+  t_TRS2_Setting : "UDT_EQP_Basic_Sett";	//Temp setting TRS2 basic offset
+  t_TRS3_Setting : "UDT_EQP_Basic_Sett";	//Temp setting TRS3 basic offset
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determaine PLT DB's and calculate search windows
+//EDIT NETWORK WHEN AMOUNT OF CONVEYORS IS CHANGED!!!
+//
+//Collect the PLT DB numbers for block call usage.
+//Calculate search windows when conveyors have a delayed start.
+      NOP   0; 
+//**********************************************************************************************************
+// Delete not used search window calculations and PLT DB number stores.
+// When the merge section only consist out of 1 conveyor, the whole network can be deleted.
+//**********************************************************************************************************
+      NOP   0; 
+//Calculate search position TRS1
+
+      OPN   #i_TRS1_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS1_DB_PLT_Nr; // Store PLT DB number
+
+      L     DBW   12; 
+      T     #s_TRS1_Section_Length; 
+
+      L     #s_TRS1_Section_Length; 
+      L     #s_Calculated_H2H_Length; 
+      +I    ; 
+      T     #s_TRS1_Search_Position; 
+
+
+//Calculate search position TRS2
+      OPN   #i_TRS2_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS2_DB_PLT_Nr; // Store PLT DB number
+
+      L     DBW   12; 
+      T     #s_TRS2_Section_Length; 
+
+      L     #s_TRS2_Section_Length; 
+      L     #s_Calculated_H2H_Length; 
+      +I    ; 
+      T     #s_TRS2_Search_Position; 
+
+//Calculate search position TRS3
+      OPN   #i_TRS3_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS3_DB_PLT_Nr; // Store PLT DB number
+
+      L     DBW   12; 
+      T     #s_TRS3_Section_Length; 
+
+      L     #s_TRS3_Section_Length; 
+      L     #s_Calculated_H2H_Length; 
+      +I    ; 
+      T     #s_TRS3_Search_Position; 
+
+//Calculate search window
+      L     #s_Calculated_H2H_Length; 
+      L     #s_Calculated_H2H_Length; 
+      +I    ; 
+      T     #s_Search_Window; 
+
+NETWORK
+TITLE =BA: TRS1
+//EDIT NETWORK WHEN THIS IS THE ONLY MERGE CONVEYOR!!!
+      NOP   0; 
+//**********************************************************************************************************
+// Change "i_DB_PLT_Downstream" at the switch direction block to "i_DB_PLT_Down_of_MGZ" when this is the
+// only merge conveyor and the "i_CFG_Init_Cascade_FWD" into TRUE
+//**********************************************************************************************************
+      O     #i_CMD_Reset; // Reset ASI errors
+      ON    #i_Available_IO; 
+      R     #o_TRS1_ST_ASI_NotPrsnt; 
+      R     #o_TRS1_ST_ASI_Error; 
+
+      A     #i_TRS1_ASI_NotPrsnt; // Set ASI errors
+      A     #i_Available_IO; 
+      S     #o_TRS1_ST_ASI_NotPrsnt; 
+
+      A     #i_TRS1_ASI_Error; 
+      A     #i_Available_IO; 
+      S     #o_TRS1_ST_ASI_Error; 
+
+      A     #i_Available_IO; 
+      AN    #i_TRS1_ASI_NotPrsnt; 
+      AN    #i_TRS1_ASI_Error; 
+      =     #t_TRS1_Available_IO; 
+
+
+      CALL #s_TRS1_FB_Switch_Dir (
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_PLT_UpStr           := #i_DB_PLT_UpStr,
+           i_DB_PLT_DwnStr          := #i_TRS2_DB_PLT,
+           i_CMD_Reverse            := #i_CMD_Reverse,
+           i_CFG_Cascade_Delay_FWD  := 300,
+           i_CFG_Cascade_Delay_REV  := 0,
+           o_OS_Direction_Change    := #s_TRS1_Int_Prog.OS_Direction_Change,
+           o_CMD_MTR_Reverse        := #s_TRS1_Int_Prog.CMD_MTR_Reverse,
+           o_Cascade_Delay_Time     := #s_TRS1_Int_Prog.Cascade_Delay_Time);
+
+      AN    #s_TRS1_Int_Prog.CMD_MTR_Reverse; 
+      =     #s_TRS1_Int_Prog.CMD_NOT_MTR_Reverse; 
+
+// Equipment layer PEC EOS
+      CALL #s_TRS1_FB_PEC_2Dir_EOS (
+           i_Setting                := #i_TRS1_Setting.PEC_1_2D,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS1_IO_NOT_PEC_1,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_TRS1_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_TRS1_Int_Prog.CMD_MTR_Reverse,
+           o_LPOS                   := #s_TRS1_Int_Prog.LPOS_FWD,
+           o_PEC_Position           := #s_TRS1_Int_Prog.PEC_Offset_Forward,
+           o_ST_PEC_Blk             := #o_TRS1_ST_PEC1_Blk);
+
+// Equipment layer PEC SOS
+      CALL #s_TRS1_FB_PEC_2Dir_SOS (
+           i_Setting                := #i_TRS1_Setting.PEC_2_2D,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS1_IO_NOT_PEC_2,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_TRS1_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_TRS1_Int_Prog.CMD_NOT_MTR_Reverse,
+           o_LPOS                   := #s_TRS1_Int_Prog.LPOS_REV,
+           o_PEC_Position           := #s_TRS1_Int_Prog.PEC_Offset_Reverse,
+           o_ST_PEC_Blk             := #o_TRS1_ST_PEC2_Blk);
+
+// Equipment layer PPI
+      CALL #s_TRS1_FB_PPI (
+           i_CFG_PPI_Resolution     := 50,
+           i_CFG_Time_Out_Error     := 300,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_IO_PPI                 := #i_TRS1_IO_PPI,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS1_Int_Prog.PPI_Displacement,
+           o_ST_PPI_Err             := #o_TRS1_ST_PPI_Err);
+
+
+//Offset link with induct
+      AN    #i_CMD_Reverse; 
+      JCN   BA01; 
+
+      L     #s_TRS1_Int_Prog.PEC_Offset_Forward; 
+      T     #o_TRS1_PEC_Offset; 
+      T     #s_TRS1_Tl_Offset; 
+
+//Load offset forward
+      L     #i_TRS1_Setting.Basic_FWD.Offset; 
+      T     #t_TRS1_Setting.Offset; 
+      JU    BA02; 
+
+BA01: L     #s_TRS1_Int_Prog.PEC_Offset_Reverse; 
+      T     #o_TRS1_PEC_Offset; 
+      T     #s_TRS1_Tl_Offset; 
+
+//Load offset reverse
+      L     #i_TRS1_Setting.Basic_REV.Offset; 
+      T     #t_TRS1_Setting.Offset; 
+
+BA02: NOP   0; 
+
+//Calculated standard start-up for section
+      L     #i_TRS1_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+// Collect all errors and create stop request 
+      A     #o_TRS1_ST_PEC2_Blk; 
+      O     #o_TRS1_ST_PEC1_Blk; 
+      O     #o_TRS1_ST_PPI_Err; 
+      O     #o_TRS1_ST_LMS_NotPrsnt; 
+      O     #o_TRS1_ST_LMS_Error; 
+      O     #o_TRS1_ST_LMS_Not_Auto; 
+      O     #o_TRS1_ST_LMS_Not_Hthy; 
+      =     #s_TRS1_EXT.Inputs.Request_Stop; 
+
+// Collect all halt requests and create halt request
+      A     #s_TRS1_Delay_Start; 
+      O     #i_TRS1_Ext_Req_Halt; 
+      O     #s_TRS1_Int_Prog.HW_Request_Halt; 
+      =     #s_TRS1_EXT.Inputs.Request_Halt; 
+
+//**********************************************************************************************************
+// Change "i_CFG_Slave_Mode" into "FALSE" when this is the only merge conveyor
+//**********************************************************************************************************
+
+// Equipment layer basic function
+      CALL #s_TRS1_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS1_ID,
+           i_Setting                := #t_TRS1_Setting,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS1_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS1_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_CFG_Minimum_Gap        := 30,
+           i_CFG_Add_Gap_Stop       := 10,
+           i_CFG_Minimum_H2H        := 30,
+           i_CFG_Add_H2H_Stop       := 0,
+           i_CFG_Cascade_Delay_Time := #s_TRS1_Int_Prog.Cascade_Delay_Time,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := #s_TRS1_Int_Prog.CMD_NOT_MTR_Reverse,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := #s_TRS1_Int_Prog.PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS1_Tl_Offset,
+           i_Available_IO           := #t_TRS1_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS1_EXT.Inputs.Request_Stop,
+           i_Ext_Req_Halt           := #s_TRS1_EXT.Inputs.Request_Halt,
+           i_Ext_Req_Dis_Send       := #s_TRS1_EXT.Inputs.Request_Disable_Send,
+           i_Ext_Req_Rst_ESave      := #s_TRS1_EXT.Inputs.Request_Reset_EnergySave,
+           i_OS_Direction_Change    := #s_TRS1_Int_Prog.OS_Direction_Change,
+           o_External               := #o_TRS1_EXT_Outputs,
+           o_Motor_Run              := #s_TRS1_Int_Prog.Motor_Run,
+           o_ST_Items               := #o_TRS1_ST_Items,
+           o_ST_Running             := #o_TRS1_ST_Running,
+           o_ST_Started             := #o_TRS1_ST_Started,
+           o_ST_Request_Halt        := #o_TRS1_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS1_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS1_Ready_To_Restart);
+
+//Offset link with induct
+      AN    #i_CMD_Reverse; 
+      JCN   BA03; 
+
+      CALL #s_TRS1_TRK_Track_FWD (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS1_Int_Prog.PEC_Offset_Forward,
+           i_LPOS                   := #s_TRS1_Int_Prog.LPOS_FWD,
+           i_Setting                := #i_TRS1_Setting.Track_FWD,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 5,
+           i_CFG_Default_Record     := #i_TRS1_CFG_Default_Rec,
+           i_OS_Direction_Change    := FALSE);
+
+      JU    BA04; 
+
+BA03: CALL #s_TRS1_TRK_Track_REV (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS1_Int_Prog.PEC_Offset_Reverse,
+           i_LPOS                   := #s_TRS1_Int_Prog.LPOS_REV,
+           i_Setting                := #i_TRS1_Setting.Track_REV,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 5,
+           i_CFG_Default_Record     := #i_TRS1_CFG_Default_Rec,
+           i_OS_Direction_Change    := FALSE);
+
+// Hardware layer
+BA04: CALL #s_TRS1_FB_HW_MTR_2D_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #t_TRS1_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_TRS1_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS1_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS1_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS1_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_TRS1_Int_Prog.Motor_Run,
+           i_CMD_Req_Motor_Reverse  := #s_TRS1_Int_Prog.CMD_MTR_Reverse,
+           o_IO_MTR_Fwd             := #o_TRS1_IO_MTR_FWD,
+           o_IO_MTR_Rev             := #o_TRS1_IO_MTR_REV,
+           o_IO_MTR_Dis_Quick_Stop  := #o_TRS1_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #o_TRS1_ST_LMS_NotPrsnt,
+           o_ST_ASI_Err             := #o_TRS1_ST_LMS_Error,
+           o_ST_LMS_Not_Auto        := #o_TRS1_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_TRS1_ST_LMS_Not_Hthy,
+           o_Req_Halt               := #s_TRS1_Int_Prog.HW_Request_Halt);
+
+// Data Layer
+      CALL #s_TRS1_FB_DAT (
+           i_ID_Section             := #i_TRS1_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+
+NETWORK
+TITLE =CA: TRS 1 Delayed start (Fixed network for first merge conveyor)
+//THIS NETWORK IS ONLY USED WHEN THERE IS MORE THEN 1 MERGE CONVEYOR IN THE 
+//CONFIGURATION. OTHERWISE DELETE IT!
+//
+//When a conveyor has stopped during a energy save or a error, the conveyor will 
+//use a delayed start at the next start-up. When the conveyor has to startup 
+//again 
+//, the window generator will stop with generating windows so there will be no 
+//overlap at the windows between the conveyors. When there is no leading edge or 
+//reservating detected for the defined window length the conveyor can startup 
+//again.
+      NOP   0; 
+// Determine when conveyor will use a delayed start-up (fixed)
+      A     #o_TRS1_EXT_Outputs.Energy_Saving; 
+      O     #s_TRS1_EXT.Inputs.Request_Stop; 
+      S     #s_TRS1_Delay_Start; 
+
+// Execute delayed startup when conveyor wants to run (fixed)
+      A     #s_TRS1_Delay_Start; 
+      AN    #o_TRS1_EXT_Outputs.Energy_Saving; 
+      AN    #s_TRS1_EXT.Inputs.Request_Stop; 
+      A     #o_TRS1_EXT_Outputs.Operational_On; 
+      JCN   CA99; 
+
+// Search upstream conveyor when in forward mode (fixed for most upstream conveyor)
+      A     #i_CMD_Reverse; 
+      JCN   CA01; 
+
+      SET   ; 
+      R     #s_TRS1_Delay_Start; // reset delayed start-up when there is no other downstream merge conveyor
+      JU    CA99; 
+
+// Search upstream conveyor when in forward direction (Fixed for most upstream conveyor with another downstream conveyor)  
+
+CA01: CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_TRS2_DB_PLT_Nr,
+           i_Position               := #s_TRS2_Search_Position,
+           i_Window                 := #s_Search_Window,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      R     #s_TRS1_Delay_Start; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: TRS2
+//EDIT NETWORK WHEN THIS IS THE LAST DOWNSTREAM MERGE CONVEYOR!!!
+      NOP   0; 
+//**********************************************************************************************************
+// Change "i_DB_PLT_Downstream" at the switch direction block to "i_DB_PLT_Down_of_MGZ" when this is the
+// last merge conveyor and the "i_CFG_Init_Cascade_FWD" into TRUE
+//**********************************************************************************************************
+      O     #i_CMD_Reset; // Reset ASI errors
+      ON    #i_Available_IO; 
+      R     #o_TRS2_ST_ASI_NotPrsnt; 
+      R     #o_TRS2_ST_ASI_Error; 
+
+      A     #i_TRS2_ASI_NotPrsnt; // Set ASI errors
+      A     #i_Available_IO; 
+      S     #o_TRS2_ST_ASI_NotPrsnt; 
+
+      A     #i_TRS2_ASI_Error; 
+      A     #i_Available_IO; 
+      S     #o_TRS2_ST_ASI_Error; 
+
+      A     #i_Available_IO; 
+      AN    #i_TRS2_ASI_NotPrsnt; 
+      AN    #i_TRS2_ASI_Error; 
+      =     #t_TRS2_Available_IO; 
+
+      CALL #s_TRS2_FB_Switch_Dir (
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_PLT_UpStr           := #i_TRS1_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS3_DB_PLT,
+           i_CMD_Reverse            := #i_CMD_Reverse,
+           i_CFG_Cascade_Delay_FWD  := 300,
+           i_CFG_Cascade_Delay_REV  := 300,
+           o_OS_Direction_Change    := #s_TRS2_Int_Prog.OS_Direction_Change,
+           o_CMD_MTR_Reverse        := #s_TRS2_Int_Prog.CMD_MTR_Reverse,
+           o_Cascade_Delay_Time     := #s_TRS2_Int_Prog.Cascade_Delay_Time);
+
+      AN    #s_TRS2_Int_Prog.CMD_MTR_Reverse; 
+      =     #s_TRS2_Int_Prog.CMD_NOT_MTR_Reverse; 
+
+// Equipment layer PEC EOS
+      CALL #s_TRS2_FB_PEC_2Dir_EOS (
+           i_Setting                := #i_TRS2_Setting.PEC_1_2D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_PEC_1,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_TRS2_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_TRS2_Int_Prog.CMD_MTR_Reverse,
+           o_LPOS                   := #s_TRS2_Int_Prog.LPOS_FWD,
+           o_PEC_Position           := #s_TRS2_Int_Prog.PEC_Offset_Forward,
+           o_ST_PEC_Blk             := #o_TRS2_ST_PEC1_Blk);
+
+// Equipment layer PEC SOS
+      CALL #s_TRS2_FB_PEC_2Dir_SOS (
+           i_Setting                := #i_TRS2_Setting.PEC_2_2D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_PEC_2,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_TRS2_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_TRS2_Int_Prog.CMD_NOT_MTR_Reverse,
+           o_LPOS                   := #s_TRS2_Int_Prog.LPOS_REV,
+           o_PEC_Position           := #s_TRS2_Int_Prog.PEC_Offset_Reverse,
+           o_ST_PEC_Blk             := #o_TRS2_ST_PEC2_Blk);
+
+// Equipment layer PPI
+      CALL #s_TRS2_FB_PPI (
+           i_CFG_PPI_Resolution     := 50,
+           i_CFG_Time_Out_Error     := 300,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_IO_PPI                 := #i_TRS2_IO_PPI,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS2_Int_Prog.PPI_Displacement,
+           o_ST_PPI_Err             := #o_TRS2_ST_PPI_Err);
+
+// Offset link with induct
+      AN    #i_CMD_Reverse; 
+      JCN   DA01; 
+
+      L     #s_TRS2_Int_Prog.PEC_Offset_Forward; 
+      T     #o_TRS2_PEC_Offset; 
+      T     #s_TRS2_Tl_Offset; 
+
+//Load offset forward
+      L     #i_TRS2_Setting.Basic_FWD.Offset; 
+      T     #t_TRS2_Setting.Offset; 
+      JU    DA02; 
+
+DA01: L     #s_TRS2_Int_Prog.PEC_Offset_Reverse; 
+      T     #o_TRS2_PEC_Offset; 
+      T     #s_TRS2_Tl_Offset; 
+
+//Load offset reverse
+      L     #i_TRS2_Setting.Basic_REV.Offset; 
+      T     #t_TRS2_Setting.Offset; 
+
+DA02: NOP   0; 
+
+//Calculated standard start-up for section
+      L     #i_TRS2_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+// Collect all errors and create stop request 
+      A     #o_TRS2_ST_PEC2_Blk; 
+      O     #o_TRS2_ST_PEC1_Blk; 
+      O     #o_TRS2_ST_PPI_Err; 
+      O     #o_TRS2_ST_LMS_NotPrsnt; 
+      O     #o_TRS2_ST_LMS_Error; 
+      O     #o_TRS2_ST_LMS_Not_Auto; 
+      O     #o_TRS2_ST_LMS_Not_Hthy; 
+      =     #s_TRS2_EXT.Inputs.Request_Stop; 
+
+// Collect all halt requests and create halt request
+      A     #s_TRS2_Delay_Start; 
+      O     #i_TRS2_Ext_Req_Halt; 
+      O     #s_TRS2_Int_Prog.HW_Request_Halt; 
+      =     #s_TRS2_EXT.Inputs.Request_Halt; 
+
+
+//**********************************************************************************************************
+// Change "i_CFG_Slave_Mode" into "s_TRS2_Req_MTR_Rev" when this is the last downstream merge conveyor
+//**********************************************************************************************************
+
+// Equipment layer basic function
+      CALL #s_TRS2_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS2_ID,
+           i_Setting                := #t_TRS2_Setting,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS2_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS2_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_CFG_Minimum_Gap        := 30,
+           i_CFG_Add_Gap_Stop       := 10,
+           i_CFG_Minimum_H2H        := 30,
+           i_CFG_Add_H2H_Stop       := 0,
+           i_CFG_Cascade_Delay_Time := #s_TRS2_Int_Prog.Cascade_Delay_Time,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := TRUE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := #s_TRS2_Int_Prog.PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS2_Tl_Offset,
+           i_Available_IO           := #t_TRS2_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS2_EXT.Inputs.Request_Stop,
+           i_Ext_Req_Halt           := #s_TRS2_EXT.Inputs.Request_Halt,
+           i_Ext_Req_Dis_Send       := #s_TRS2_EXT.Inputs.Request_Disable_Send,
+           i_Ext_Req_Rst_ESave      := #s_TRS2_EXT.Inputs.Request_Reset_EnergySave,
+           i_OS_Direction_Change    := #s_TRS2_Int_Prog.OS_Direction_Change,
+           o_External               := #o_TRS2_EXT_Outputs,
+           o_Motor_Run              := #s_TRS2_Int_Prog.Motor_Run,
+           o_ST_Items               := #o_TRS2_ST_Items,
+           o_ST_Running             := #o_TRS2_ST_Running,
+           o_ST_Started             := #o_TRS2_ST_Started,
+           o_ST_Request_Halt        := #o_TRS2_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS2_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS2_Ready_To_Restart);
+
+//Offset link with induct
+      AN    #i_CMD_Reverse; 
+      JCN   DA03; 
+
+      CALL #s_TRS2_TRK_Track_FWD (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS2_Int_Prog.PEC_Offset_Forward,
+           i_LPOS                   := #s_TRS2_Int_Prog.LPOS_FWD,
+           i_Setting                := #i_TRS2_Setting.Track_FWD,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 5,
+           i_CFG_Default_Record     := #i_TRS2_CFG_Default_Rec,
+           i_OS_Direction_Change    := FALSE);
+
+      JU    DA04; 
+
+DA03: CALL #s_TRS2_TRK_Track_REV (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS2_Int_Prog.PEC_Offset_Reverse,
+           i_LPOS                   := #s_TRS2_Int_Prog.LPOS_REV,
+           i_Setting                := #i_TRS2_Setting.Track_REV,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 5,
+           i_CFG_Default_Record     := #i_TRS2_CFG_Default_Rec,
+           i_OS_Direction_Change    := FALSE);
+
+// Hardware layer
+DA04: CALL #s_TRS2_FB_HW_MTR_2D_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #t_TRS2_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_TRS2_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS2_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS2_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS2_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_TRS2_Int_Prog.Motor_Run,
+           i_CMD_Req_Motor_Reverse  := #s_TRS2_Int_Prog.CMD_MTR_Reverse,
+           o_IO_MTR_Fwd             := #o_TRS2_IO_MTR_FWD,
+           o_IO_MTR_Rev             := #o_TRS2_IO_MTR_REV,
+           o_IO_MTR_Dis_Quick_Stop  := #o_TRS2_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #o_TRS2_ST_LMS_NotPrsnt,
+           o_ST_ASI_Err             := #o_TRS2_ST_LMS_Error,
+           o_ST_LMS_Not_Auto        := #o_TRS2_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_TRS2_ST_LMS_Not_Hthy,
+           o_Req_Halt               := #s_TRS2_Int_Prog.HW_Request_Halt);
+
+// Data Layer
+      CALL #s_TRS2_DAT_SAC (
+           i_ID_Section             := #i_TRS2_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =EA: TRS 2 Delayed start
+//EDIT NETWORK WHEN THERE IS NO DOWNSTREAM MERGE CONVEYOR ANYMORE AFTER THIS 
+//ONE!!!
+//
+//When a conveyor has stopped during a energy save or a error, the conveyor will 
+//use a delayed start at the next start-up. When the conveyor has to startup 
+//again 
+//, the window generator will stop with generating windows so there will be no 
+//overlap at the windows between the conveyors. When there is no leading edge or 
+//reservating detected for the defined window length the conveyor can startup 
+//again.
+      NOP   0; 
+
+// Determine when conveyor will use a delayed start-up (fixed)
+      A     #o_TRS2_EXT_Outputs.Energy_Saving; 
+      O     #s_TRS2_Int_Prog.HW_Request_Halt; 
+      S     #s_TRS2_Delay_Start; 
+
+// Execute delayed startup when conveyor wants to run (fixed)
+      A     #s_TRS2_Delay_Start; 
+      AN    #o_TRS2_EXT_Outputs.Energy_Saving; 
+      AN    #s_TRS2_Int_Prog.HW_Request_Halt; 
+      A     #o_TRS2_EXT_Outputs.Operational_On; 
+      JCN   EA99; 
+
+// Search downstream conveyor when in reverse mode
+      A     #i_CMD_Reverse; 
+      JCN   EA01; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_TRS1_DB_PLT_Nr,
+           i_Position               := #s_TRS1_Search_Position,
+           i_Window                 := #s_Search_Window,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      R     #s_TRS2_Delay_Start; 
+      JU    EA99; 
+
+//**********************************************************************************************************
+// Search downstream conveyor when in forward direction (Only when there is another upstream merge conveyor)
+// Otherwise delete search and compare function and release 2 comment/code lines
+//**********************************************************************************************************
+
+
+EA01: CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Nr,
+           i_Position               := #s_TRS3_Search_Position,
+           i_Window                 := #s_Search_Window,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      R     #s_TRS2_Delay_Start; 
+
+//EA01: set
+//      R     #s_TRS2_Delay_Start
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Calculate H2H Distance according i_CMD_Capacity
+
+      L     #i_CMD_Capacity; 
+      L     0; 
+      >I    ; 
+      JCN   FA01; 
+
+      L     #i_CMD_Capacity; 
+      T     #s_Capacity_Actual_Value; 
+
+FA01: NOP   0; 
+
+      CALL "FC_Calc_H2H_Distance" (
+           i_CFG_Conveyor_Speed     := #i_TRS2_CFG_Conv_Speed,
+           i_CFG_Capacity           := #s_Capacity_Actual_Value,
+           i_CFG_Minimum_Capacity   := #i_CFG_Min_Capacity,
+           i_CFG_Maximum_Capacity   := #i_CFG_Max_Capacity,
+           o_H2H_Length             := #s_Calculated_H2H_Length,
+           o_Current_Capacity       := #o_Capacity,
+           o_ST_Capacity_2Low       := #t_BOOL_Not_Used,
+           o_ST_Capacity_2High      := #t_BOOL_Not_Used,
+           o_ST_CalcH2H_Disable     := #s_Disable_Calculate_H2H);
+
+NETWORK
+TITLE =GA: TRS3
+//EDIT NETWROK WHEN THIS IS NOT THE LAST DOWNSTREAM MERGE CONVEYOR!!!
+      NOP   0; 
+//**********************************************************************************************************
+// Change "i_DB_PLT_Downstream" at the switch direction block into the next Downstream merge conveyor PLT DB 
+// "i_TRSx_CFG_DB_PLT" and change "i_CFG_Init_Cascade_FWD" into FALSE
+//**********************************************************************************************************
+      O     #i_CMD_Reset; // Reset ASI errors
+      ON    #i_Available_IO; 
+      R     #o_TRS3_ST_ASI_NotPrsnt; 
+      R     #o_TRS3_ST_ASI_Err; 
+
+      A     #i_TRS3_ASI_NotPrsnt; // Set ASI errors
+      A     #i_Available_IO; 
+      S     #o_TRS3_ST_ASI_NotPrsnt; 
+
+      A     #i_TRS3_ASI_Error; 
+      A     #i_Available_IO; 
+      S     #o_TRS3_ST_ASI_Err; 
+
+      A     #i_Available_IO; 
+      AN    #i_TRS3_ASI_NotPrsnt; 
+      AN    #i_TRS3_ASI_Error; 
+      =     #t_TRS3_Available_IO; 
+
+      CALL #s_TRS3_FB_Switch_Dir (
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_PLT_UpStr           := #i_TRS2_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_DwnStr,
+           i_CMD_Reverse            := #i_CMD_Reverse,
+           i_CFG_Cascade_Delay_FWD  := 0,
+           i_CFG_Cascade_Delay_REV  := 300,
+           o_OS_Direction_Change    := #s_TRS3_Int_Prog.OS_Direction_Change,
+           o_CMD_MTR_Reverse        := #s_TRS3_Int_Prog.CMD_MTR_Reverse,
+           o_Cascade_Delay_Time     := #s_TRS3_Int_Prog.Cascade_Delay_Time);
+
+      AN    #s_TRS3_Int_Prog.CMD_MTR_Reverse; 
+      =     #s_TRS3_Int_Prog.CMD_NOT_MTR_Reverse; 
+
+// Equipment layer PEC EOS
+      CALL #s_TRS3_FB_PEC_2Dir_EOS (
+           i_Setting                := #i_TRS3_Setting.PEC_1_2D,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 10,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS3_IO_NOT_PEC_1,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_TRS3_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_TRS3_Int_Prog.CMD_MTR_Reverse,
+           o_LPOS                   := #s_TRS3_Int_Prog.LPOS_FWD,
+           o_PEC_Position           := #s_TRS3_Int_Prog.PEC_Offset_Forward,
+           o_ST_PEC_Blk             := #o_TRS3_ST_PEC1_Blk);
+
+// Equipment layer PEC SOS
+      CALL #s_TRS3_FB_PEC_2Dir_SOS (
+           i_Setting                := #i_TRS3_Setting.PEC_2_2D,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS3_IO_NOT_PEC_2,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_Eqp_Available_IO       := #t_TRS3_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Disable_Update_Funct   := #s_TRS3_Int_Prog.CMD_NOT_MTR_Reverse,
+           o_LPOS                   := #s_TRS3_Int_Prog.LPOS_REV,
+           o_PEC_Position           := #s_TRS3_Int_Prog.PEC_Offset_Reverse,
+           o_ST_PEC_Blk             := #o_TRS3_ST_PEC2_Blk);
+
+// Equipment layer PPI
+      CALL #s_TRS3_FB_PPI (
+           i_CFG_PPI_Resolution     := 50,
+           i_CFG_Time_Out_Error     := 300,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_IO_PPI                 := #i_TRS3_IO_PPI,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS3_Int_Prog.PPI_Displacement,
+           o_ST_PPI_Err             := #o_TRS3_ST_PPI_Err);
+
+
+      AN    #i_CMD_Reverse; 
+      JCN   GA01; 
+
+      L     #s_TRS3_Int_Prog.PEC_Offset_Forward; 
+      T     #o_TRS3_PEC_Offset; 
+      T     #s_TRS3_Tl_Offset; 
+
+//Load offset forward
+      L     #i_TRS3_Setting.Basic_FWD.Offset; 
+      T     #t_TRS3_Setting.Offset; 
+      JU    GA02; 
+
+GA01: L     #s_TRS3_Int_Prog.PEC_Offset_Reverse; 
+      T     #o_TRS3_PEC_Offset; 
+      T     #s_TRS3_Tl_Offset; 
+
+//Load offset reverse
+      L     #i_TRS3_Setting.Basic_REV.Offset; 
+      T     #t_TRS3_Setting.Offset; 
+GA02: NOP   0; 
+
+//Calculated standard start-up for section
+      L     #i_TRS3_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+// Collect all errors and create stop request 
+      A     #o_TRS3_ST_PEC2_Blk; 
+      O     #o_TRS3_ST_PEC1_Blk; 
+      O     #o_TRS3_ST_PPI_Err; 
+      O     #o_TRS3_ST_LMS_NotPrsnt; 
+      O     #o_TRS3_ST_LMS_Error; 
+      O     #o_TRS3_ST_LMS_Not_Auto; 
+      O     #o_TRS3_ST_LMS_Not_Hthy; 
+      =     #s_TRS3_EXT.Inputs.Request_Stop; 
+
+// Collect all halt requests and create halt request
+      A     #s_TRS3_Delay_Start; 
+      O     #i_TRS3_Ext_Req_Halt; 
+      O     #s_TRS3_Int_Prog.HW_Request_Halt; 
+      =     #s_TRS3_EXT.Inputs.Request_Halt; 
+
+//**********************************************************************************************************
+// Change "i_DB_PLT_Downstream" into the next Downstream merge conveyor PLT DB "i_TRSx_CFG_DB_PLT" 
+// Change "i_CFG_Slave_Mode" into "TRUE" when this is not the last upstream merge conveyor
+//**********************************************************************************************************
+
+// Equipment layer basic function
+      CALL #s_TRS3_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS3_ID,
+           i_Setting                := #t_TRS3_Setting,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_DwnStr,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS3_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS3_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_CFG_Minimum_Gap        := 30,
+           i_CFG_Add_Gap_Stop       := 10,
+           i_CFG_Minimum_H2H        := 30,
+           i_CFG_Add_H2H_Stop       := 0,
+           i_CFG_Cascade_Delay_Time := #s_TRS3_Int_Prog.Cascade_Delay_Time,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := #s_TRS3_Int_Prog.CMD_MTR_Reverse,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_PPI_Displacement       := #s_TRS3_Int_Prog.PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS3_Tl_Offset,
+           i_Available_IO           := #t_TRS3_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS3_EXT.Inputs.Request_Stop,
+           i_Ext_Req_Halt           := #s_TRS3_EXT.Inputs.Request_Halt,
+           i_Ext_Req_Dis_Send       := #s_TRS3_EXT.Inputs.Request_Disable_Send,
+           i_Ext_Req_Rst_ESave      := #s_TRS3_EXT.Inputs.Request_Reset_EnergySave,
+           i_OS_Direction_Change    := #s_TRS3_Int_Prog.OS_Direction_Change,
+           o_External               := #o_TRS3_EXT_Outputs,
+           o_Motor_Run              := #s_TRS3_Int_Prog.Motor_Run,
+           o_ST_Items               := #o_TRS3_ST_Items,
+           o_ST_Running             := #o_TRS3_ST_Running,
+           o_ST_Started             := #o_TRS3_ST_Started,
+           o_ST_Request_Halt        := #o_TRS3_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS3_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS3_Ready_To_Restart);
+
+      AN    #i_CMD_Reverse; 
+      JCN   GA03; 
+
+      CALL #s_TRS3_TRK_Track_FWD (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS3_Int_Prog.PEC_Offset_Forward,
+           i_LPOS                   := #s_TRS3_Int_Prog.LPOS_FWD,
+           i_Setting                := #i_TRS3_Setting.Track_FWD,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 5,
+           i_CFG_Default_Record     := #i_TRS3_CFG_Default_Rec,
+           i_OS_Direction_Change    := FALSE);
+
+      JU    GA04; 
+
+GA03: CALL #s_TRS3_TRK_Track_REV (
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS3_Int_Prog.PEC_Offset_Reverse,
+           i_LPOS                   := #s_TRS3_Int_Prog.LPOS_REV,
+           i_Setting                := #i_TRS3_Setting.Track_REV,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 5,
+           i_CFG_Default_Record     := #i_TRS3_CFG_Default_Rec,
+           i_OS_Direction_Change    := FALSE);
+
+// Hardware layer
+GA04: CALL #s_TRS3_FB_HW_MTR_2D_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #t_TRS3_Available_IO,
+           i_LMS_NotPrsnt           := #i_TRS3_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS3_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS3_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS3_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_TRS3_Int_Prog.Motor_Run,
+           i_CMD_Req_Motor_Reverse  := #s_TRS3_Int_Prog.CMD_MTR_Reverse,
+           o_IO_MTR_Fwd             := #o_TRS3_IO_MTR_FWD,
+           o_IO_MTR_Rev             := #o_TRS3_IO_MTR_REV,
+           o_ST_ASI_NotPrsnt        := #o_TRS3_ST_LMS_NotPrsnt,
+           o_ST_ASI_Err             := #o_TRS3_ST_LMS_Error,
+           o_ST_LMS_Not_Auto        := #o_TRS3_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_TRS3_ST_LMS_Not_Hthy,
+           o_Req_Halt               := #s_TRS3_Int_Prog.HW_Request_Halt);
+
+// Data Layer
+      CALL #s_TRS3_FB_DAT (
+           i_ID_Section             := #i_TRS3_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =HA: TRS 3 Delayed start
+//EDIT NETWORK WHEN THERE IS ANOTHER MERGE CONVEYOR AFTER THIS ONE!!!
+//
+//When a conveyor has stopped during a energy save or a error, the conveyor will 
+//use a delayed start at the next start-up. When the conveyor has to startup 
+//again 
+//, the window generator will stop with generating windows so there will be no 
+//overlap at the windows between the conveyors. When there is no leading edge or 
+//reservating detected for the defined window length the conveyor can startup 
+//again.
+      NOP   0; 
+
+// Determine when conveyor will use a delayed start-up (fixed)
+      A     #o_TRS3_EXT_Outputs.Energy_Saving; 
+      O     #s_TRS3_Int_Prog.HW_Request_Halt; 
+      S     #s_TRS3_Delay_Start; 
+
+// Execute delayed startup when conveyor wants to run (fixed)
+      A     #s_TRS3_Delay_Start; 
+      AN    #o_TRS3_EXT_Outputs.Energy_Saving; 
+      AN    #s_TRS3_Int_Prog.HW_Request_Halt; 
+      A     #o_TRS3_EXT_Outputs.Operational_On; 
+      JCN   HA99; 
+
+      A     #i_CMD_Reverse; 
+      JCN   HA01; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_TRS2_DB_PLT_Nr,
+           i_Position               := #s_TRS2_Search_Position,
+           i_Window                 := #s_Search_Window,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      R     #s_TRS3_Delay_Start; 
+      JU    HA99; 
+
+//**********************************************************************************************************
+// Search downstream conveyor when in forward direction (Only when there is another downstream merge conveyor)
+// When another downstream merge conveyor is in the configuration, this belt has to check that conveyor.
+// To enable the check release the comment/code for the search function and the compare function, and delete
+// the fixed reset below
+//**********************************************************************************************************
+
+//HA01:  CALL  "FC_PLT_Srch_Win_Dwn"
+//       i_DB_PLT            :=#s_TRS4_DB_PLT_Nr
+//       i_Position          :=#s_TRS4_Search_Position
+//       i_Window            :=#s_Search_Window
+//       o_Position          :=#t_INT_Not_Used
+//       o_Info              :=#t_INT_Not_Used
+//       o_Link              :=#t_INT_Not_Used
+//       o_DB_PLT            :=#t_INT_Not_Used
+//       o_Number_Items_Found:=#t_Number_Items_Found
+
+//      L     #t_Number_Items_Found
+//      L     0
+//      ==I   
+//      R     #s_TRS3_Delay_Start
+
+HA01: SET   ; 
+      R     #s_TRS3_Delay_Start; 
+
+HA99: NOP   0; 
+
+NETWORK
+TITLE =IA: Window generator block call
+//EDIT THIS NETWORK WHEN THERE ARE MERGE CONVEYORS ADDED OR DELETED!!!
+//
+      NOP   0; 
+//**********************************************************************************************************
+// Change "i_DB_PLT_Most_Downstream" into the most downstream PLT DB which is used of all merge conveyors
+//**********************************************************************************************************
+
+      CALL #s_Window_Generator (
+           i_DB_PLT_Most_DwnStr     := #i_TRS3_DB_PLT,
+           i_DB_PLT_Most_UpStr      := #i_TRS1_DB_PLT,
+           i_DB_Reservation         := #i_DB_Reservation,
+           i_DB_Event               := "DB_Event_Zone",
+           i_CFG_Window_Length      := #s_Calculated_H2H_Length,
+           i_CFG_In_Flow_Function   := #i_CFG_Merge_In_Flow,
+           i_Section_Run_Reverse    := #i_CMD_Reverse);
+
+      CALL #s_MGZ_FB_DAT (
+           i_ID_Section             := #i_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_SAC_Mesgs  := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =JA: Zone Signals
+//LAD!
+//EDIT NETWORK WHEN MORE THEN 3 MERGE CONVEYORS!!!
+//
+      O     #s_TRS1_Ready_To_Restart; 
+      O     #s_TRS2_Ready_To_Restart; 
+      O     #s_TRS3_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+END_FUNCTION_BLOCK
+

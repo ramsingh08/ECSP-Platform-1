@@ -1,0 +1,334 @@
+FUNCTION_BLOCK "FB_HBZ99_L1_L2_Comm"
+TITLE =%version: 0.02 % CN: 31
+//Function: 
+//Provides communication to and from "Smiths" HBS level 1/2 machine.
+//With TTY over 3964(R). 
+//
+//Description:
+//Each HBS level has its own send and receive DB. The data that is received at
+//the inputs (hardware configuration) are stored in a Receive DB. The data that 
+//must
+//be send to the HBS machine is stored in seperate send DB's.
+//
+//This version   %created_by: inrsi %
+//               %date_created: %
+//               %Library: ECS-P Release 28.4%
+////Modification History:                             By:    Date:     Rev:
+//-------------------------------------------------- -----  --------  -------
+//Receive buffer clear added                         inrsi   18-10-18    0.02
+//Initial version for Quang Ninh                     inakulk 23-03-18    0.01
+//
+//Modification History: [ESO Release]                 By:    Date:     Rev:
+//-------------------------------------------------- -----  --------  -------
+//Added s_Cancel_Job_inProgress                      inrsi   02-04-16    0.02
+//if in case of no response from machine(NAK)      
+//Reset #s_Sending_Msg on first scan                 inrsi   15-02-16    0.01
+//
+//OnSite block:
+//-------------------------------------------------- -----  --------  -------
+//Software update/fix                                inrsi   29-09-15  3Q0.05
+//Receive #Number_Of_Bytes header added to fifo      nlwwij  04-02-15  2Q0.05
+//PR#14008-Pointer addressing was corrected          inrsi   15-11-14   Q0.05
+//Rename send vars                                   nlwwij  09-05-14    0.05
+//s_Send REQ is edge-trig sensitive                  nlwwij  08-05-14    0.04
+//Remove and naming update                           nltvb   08-12-13    0.03
+//Updated, L2 send is not used so removed.           nltvb   04-09-13    0.02
+//Based on Kiev nlMRe 22-03-11 0.03                  nlwwij  20-06-13    0.01
+//
+FAMILY : ESO
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Send_Start_Add : INT ;	//Output start addres L1 (hardware) where data is send to HBS machine
+  i_RCV_L1_L2_Start_Add : INT ;	//Input start addres L1 (hardware) where data is received from HBS machine
+  i_DB_Send_Data : BLOCK_DB ;	//DB for level 1 data which is send to the HBS
+  i_DB_Receive_Data : BLOCK_DB ;	//DB for level 1 data which is received from the HBS
+END_VAR
+VAR
+  s_SFB_RCV : "S_RCV";	//Receive serial comm
+  s_SFB_SEND : "S_SEND";	//Send BID through serial comm
+  s_Rcv_Cnt_Error : WORD ;	//Counter received message error
+  s_Rcv_Cnt_Received : WORD ;	//Counter received messages
+  s_Rcv_Status_Save : WORD ;	//Status message of receive block
+  s_Rcv_LEN_Save : WORD ;	//Length of received message
+  s_Snd_Cnt_Error : WORD ;	//Counter send message error
+  s_Snd_Cnt : WORD ;	//Counter send messages
+  s_Snd_Status_Save : WORD ;	//Status message of send block
+  s_Snd_Address : DWORD ;	//Used for pointer to Send Buffer Address
+  s_Rcv_Address : DWORD ;	//Absolute start address of backbone in instance-DB
+  s_Snd_Request : BOOL ;	//Bit used for send request
+  s_Rcv_COM_RST : BOOL ;	//Level one receive block: Restart of FB
+  s_Snd_COM_RST : BOOL ;	//Send Block: Restart of FB
+  s_Cancel_Job_inProgress : BOOL ;	//Cancel job in progress (*waiting too long 10sec)
+  s_Timer_CancelJob : INT ;	//Timer Cancel job in progress
+  s_Snd_Buffer : "UDT_HBO99_Msg_Buf";	//Gather the data which has to be send
+  s_Rcv_Buffer : "UDT_HBO99_Msg_Buf";	//Gather received data for level one
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_Instance_DB_Address : INT ;	//address of instance-DB
+  t_Rcv_Address : INT ;	//Absolute start address of backbone in instance-DB
+  t_Snd_Address : INT ;	//Absolute start address of backbone in instance-DB
+  t_Rcv_FIFO_DB_Num : INT ;	//Number of the receive FIFO DB (Level 1)
+  t_Snd_FIFO_DB_Num : INT ;	//Number of the send FIFO DB
+  t_Rcv_LEN : INT ;	//Level one receive block: Lenght of received data
+  t_Snd_LEN : INT ;	//Send Block: Lenght of data to be send
+  t_Rcv_STATUS : WORD ;	//Level one receive block: Error specification
+  t_Snd_STATUS : WORD ;	//Send Block: Error specification
+  t_Rcv_NDR : BOOL ;	//Level one receive block: Enable receive bit
+  t_Rcv_ERROR : BOOL ;	//Level one receive block: Receive error
+  t_Snd_DONE : BOOL ;	//Send Block: Request completed without error
+  t_Snd_ERROR : BOOL ;	//Send Block: Request completed with error
+  t_RET_VAL_Word : WORD ;	//Temp general (not used) return value
+  t_RET_VAL_Int : INT ;	//Temp general (not used) return value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is
+//masked and stored for further use.
+      NOP   0; 
+// Send address 
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+
+      L     #t_AR2_Mask; 
+      L     P##s_Snd_Buffer; // Pointer to data in instance-DB
+      +D    ; 
+      SRD   3; // Shift to filter byte address
+      L     2; // Increase with 2 to set pointer to message body
+      +D    ; 
+      AD    DW#16#FFFFF; 
+      T     #s_Snd_Address; // Absolute start address of backbone in instance-DB
+
+      L     #s_Snd_Address; 
+      T     #t_Snd_Address; 
+
+// Receive address 
+      L     #t_AR2_Mask; 
+      L     P##s_Rcv_Buffer; // Pointer to data in instance-DB
+      +D    ; 
+      SRD   3; // Shift to filter byte address
+      L     2; // Increase with 2 to set pointer to message body
+      +D    ; 
+      AD    DW#16#FFFFF; 
+      T     #s_Rcv_Address; // Absolute start address of backbone in instance-DB
+
+      L     #s_Rcv_Address; 
+      T     #t_Rcv_Address; 
+
+//load instance DB number
+      L     DINO; 
+      T     #t_Instance_DB_Address; 
+
+NETWORK
+TITLE =BA: Determine DB-numbers of "Send" and "Receive" DB's
+
+      NOP   0; 
+// Determine DB-numbers
+      OPN   #i_DB_Send_Data; 
+      L     DBNO; 
+      T     #t_Snd_FIFO_DB_Num; // Write Send DB-number on temp
+
+      OPN   #i_DB_Receive_Data; 
+      L     DBNO; 
+      T     #t_Rcv_FIFO_DB_Num; // Write Receive DB-number on temp
+
+NETWORK
+TITLE =CA: Copy received data HBS Level 1 to Receive DB Level 1
+
+      A     "M_First_Scan"; 
+      S     #s_Rcv_COM_RST; 
+
+      CALL #s_SFB_RCV (
+           EN_R                     := TRUE,
+           R                        := FALSE,
+           LADDR                    := #i_RCV_L1_L2_Start_Add,
+           DB_NO                    := #t_Instance_DB_Address,
+           DBB_NO                   := #t_Rcv_Address,
+           NDR                      := #t_Rcv_NDR,
+           ERROR                    := #t_Rcv_ERROR,
+           LEN                      := #t_Rcv_LEN,
+           STATUS                   := #t_Rcv_STATUS,
+           COM_RST                  := #s_Rcv_COM_RST);
+
+// -------------------------------
+// Check NDR (Receive without error)
+// -------------------------------
+      A     #t_Rcv_NDR; //check NDR
+      JCN   CA01; //if NDR equals FALSE
+// -------------------------------
+// NDR = 1 (Receive without error)
+// -------------------------------
+      L     #s_Rcv_Cnt_Received; //"Receive without error"
+      +     1; //increment counter
+      T     #s_Rcv_Cnt_Received; 
+
+      L     #t_Rcv_LEN; //save RECEIVE-Length
+      T     #s_Rcv_LEN_Save; 
+      T     #s_Rcv_Buffer.Number_Of_Bytes; 
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_Rcv_FIFO_DB_Num,
+           i_Mode                   := 'I',
+           i_ANY_Data               := #s_Rcv_Buffer,
+           i_ID                     := DW#16#0,
+           o_RET_VAL_FIFO           := #t_RET_VAL_Word);
+
+
+      L     0; 
+      T     #s_Rcv_Buffer.Message_Body[1]; 
+      T     #s_Rcv_Buffer.Message_Body[2]; 
+      T     #s_Rcv_Buffer.Message_Body[3]; 
+      T     #s_Rcv_Buffer.Message_Body[4]; 
+      T     #s_Rcv_Buffer.Message_Body[5]; 
+      T     #s_Rcv_Buffer.Message_Body[6]; 
+      T     #s_Rcv_Buffer.Message_Body[7]; 
+      T     #s_Rcv_Buffer.Message_Body[8]; 
+      T     #s_Rcv_Buffer.Message_Body[9]; 
+      T     #s_Rcv_Buffer.Message_Body[10]; 
+      T     #s_Rcv_Buffer.Message_Body[11]; 
+      T     #s_Rcv_Buffer.Message_Body[12]; 
+      T     #s_Rcv_Buffer.Message_Body[13]; 
+      T     #s_Rcv_Buffer.Message_Body[14]; 
+      T     #s_Rcv_Buffer.Message_Body[15]; 
+      T     #s_Rcv_Buffer.Message_Body[16]; 
+      T     #s_Rcv_Buffer.Message_Body[17]; 
+      T     #s_Rcv_Buffer.Message_Body[18]; 
+      T     #s_Rcv_Buffer.Message_Body[19]; 
+      T     #s_Rcv_Buffer.Message_Body[20]; 
+      T     #s_Rcv_Buffer.Message_Body[21]; 
+      T     #s_Rcv_Buffer.Message_Body[22]; 
+      T     #s_Rcv_Buffer.Message_Body[23]; 
+      T     #s_Rcv_Buffer.Message_Body[24]; 
+      T     #s_Rcv_Buffer.Message_Body[25]; 
+      T     #s_Rcv_Buffer.Message_Body[26]; 
+      T     #s_Rcv_Buffer.Message_Body[27]; 
+      T     #s_Rcv_Buffer.Message_Body[28]; 
+      T     #s_Rcv_Buffer.Message_Body[29]; 
+      T     #s_Rcv_Buffer.Message_Body[30]; 
+      T     #s_Rcv_Buffer.Message_Body[31]; 
+      T     #s_Rcv_Buffer.Message_Body[32]; 
+      T     #s_Rcv_Buffer.Message_Body[33]; 
+      T     #s_Rcv_Buffer.Message_Body[34]; 
+      T     #s_Rcv_Buffer.Message_Body[35]; 
+      T     #s_Rcv_Buffer.Message_Body[36]; 
+      T     #s_Rcv_Buffer.Message_Body[37]; 
+      T     #s_Rcv_Buffer.Message_Body[38]; 
+      T     #s_Rcv_Buffer.Message_Body[39]; 
+      T     #s_Rcv_Buffer.Message_Body[40]; 
+      T     #s_Rcv_Buffer.Message_Body[41]; 
+      T     #s_Rcv_Buffer.Message_Body[42]; 
+
+      JU    CA99; 
+// -------------------------------
+// Check "Receive with error"
+// -------------------------------
+CA01: A     #t_Rcv_ERROR; //"RECV_WORK DB_SI_1".S_RECV_SI_ERROR    //check S_RECV_SI_ERROR
+      JCN   CA99; //if no error occured, jump to end
+// -------------------------------
+// "Receive with error"
+// -------------------------------
+      L     #s_Rcv_Cnt_Error; //Error
+      +     1; //increment counter
+      T     #s_Rcv_Cnt_Error; 
+// ----------------------------
+// Save "S_RECV_SI_STATUS"
+// ----------------------------
+      L     #t_Rcv_STATUS; 
+      T     #s_Rcv_Status_Save; //save STATUS
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Write data Level 1 to RS232 link (HBS machine)
+//Note: The REQ input is edge-triggered !!!
+//Therefore 1st this function is called, 2nd send new data and 3the status.
+//By this the REQ input (s_Send_Request) will be low for at least one PLC-scan.
+//So the sequence of block call and set/reset of "#s_Send_Request" is important!
+//Cancel Job if in case of no response than 10 sec
+//
+//      CALL "FC_On_Dly_T_0.1s" (
+//           i_Start                  := #s_Snd_Request,
+//           i_Enable                 := TRUE,
+//           i_Time_Value             := 100,
+//           o_Status                 := #s_Cancel_Job_inProgress,
+//           i_Current_Value         := #s_Timer_CancelJob);
+      A     "M_First_Scan"; 
+      S     #s_Snd_COM_RST; 
+
+      L     #s_Snd_Buffer.Number_Of_Bytes; 
+      T     #t_Snd_LEN; 
+
+      CALL #s_SFB_SEND (
+           REQ                      := #s_Snd_Request,
+           R                        := FALSE,
+           LADDR                    := #i_Send_Start_Add,
+           DB_NO                    := #t_Instance_DB_Address,
+           DBB_NO                   := #t_Snd_Address,
+           LEN                      := #t_Snd_LEN,
+           DONE                     := #t_Snd_DONE,
+           ERROR                    := #t_Snd_ERROR,
+           STATUS                   := #t_Snd_STATUS,
+           COM_RST                  := #s_Snd_COM_RST);
+
+      OPN   DB [#t_Snd_FIFO_DB_Num]; //Check send FIFO status
+      AN    DBX    0.0; //If the FIFO is empty
+      JCN   DA01; //Then there's noting to send
+// -------------------------------
+// Generate edge send request
+// -------------------------------
+      AN    #s_Snd_Request; // AND no send job running
+      AN    #s_Snd_COM_RST; // AND init of "S_SEND" is finished
+      JCN   DA01; //ELSE
+      S     #s_Snd_Request; 
+
+      CALL "FC_FIFO" (//Get message to send from FIFO
+           i_FIFO_DB_Num            := #t_Snd_FIFO_DB_Num,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Snd_Buffer,
+           i_ID                     := DW#16#0,
+           o_RET_VAL_FIFO           := #t_RET_VAL_Word);
+
+DA01: NOP   0; 
+
+// -------------------------------
+// Reset send request
+// -------------------------------
+      A     #t_Snd_DONE; 
+      O     #t_Snd_ERROR; 
+      O     "M_First_Scan"; 
+      O     #s_Cancel_Job_inProgress; 
+      R     #s_Snd_Request; 
+// -------------------------------
+// Check "Complete without error"
+// -------------------------------
+      A     #t_Snd_DONE; // Check DONE
+      JCN   DA02; //if DONE equals FALSE
+
+      L     #s_Snd_Cnt; //"Receive without error"
+      +     1; //increment counter
+      T     #s_Snd_Cnt; 
+      JU    DA99; 
+// -------------------------------
+// Check "Receive with error"
+// -------------------------------
+DA02: A     #t_Snd_ERROR; //check ERROR
+      JCN   DA99; //if no error occured, jump to end
+// -------------------------------
+// "Receive with error"
+// -------------------------------
+      L     #s_Snd_Cnt_Error; //Error
+      +     1; //increment counter
+      T     #s_Snd_Cnt_Error; 
+// ----------------------------
+// Save "S_RECV_SI_STATUS"
+// ----------------------------
+      L     #t_Snd_STATUS; 
+      T     #s_Snd_Status_Save; //save STATUS
+
+DA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

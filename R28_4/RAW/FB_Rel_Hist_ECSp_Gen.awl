@@ -1,0 +1,95 @@
+FUNCTION_BLOCK "FB_Rel_Hist_ECSp_Gen"
+TITLE =Release 28.4 of 'S7 Library ECS-P' CN: 00 
+//Release History of product library 'S7 Library ECS-P General'
+//
+//The blocks belonging to this library do have the block property family: 
+//'General'.
+//
+//This release is archived with document number: A_SW0000332 EN xxx
+//(xxx letter of release).
+//
+//For detailed information about this release see 'Release Notes ECS-P General 
+//'General' with document number A_DOC083886 EN x.                               
+//        
+//
+//Release History:                                              Date:     Rel:
+//-------------------------------------------------------------------------------
+//
+//Minor release update PR/CR                                    11-07-16 28.4
+//
+//Minor release update PR/CR                                    22-04-16 28.3
+//
+//Minor release update PR/CR                                    24-12-15 28.2
+//      Solved bugs / VBZ
+//
+//Minor release update PR/CR                                    09-10-15 28.1.1
+//      Solved bugs / SVD
+//
+//Minor release update PR/CR                                    24-07-15 28.1.0
+//      Solved bugs / Library moved to RA Release Platform 1
+//
+//Minor release update PR/CR                                    30-04-15 28.0.0
+//      Solved bugs / Update PNPN TCTC (Profinet)
+//
+//Minor release update PR/CR                                    09-01-15 27.0.0
+//      Solved bugs / Included Vibes3.2
+//
+//Minor release update PR/CR                                    02-10-14 26.0.0
+//      Solved bugs / Implemented PNPN TCTC (Profinet)
+//
+//Minor release update PR/CR                                    04-07-14 25.0.0
+//      Solved bugs / Implemented Delay Die-back from flow control
+//
+//Minor release update PR/CR                                    07-04-14 24.0.0
+//      Solved bugs
+//
+//Minor release update PR/CR                                    10-01-14 23.0.0
+//      Report updates + interface updates + solved bugs
+//
+//Minor release update PR/CR                                    01-10-13 22.0.0
+//      Block consistency + Multi speed + solved bugs
+//
+//Minor release update PR/CR                                    28-06-13 21.0.0
+//      Upstream tracking update + solved bugs
+//
+//Major release PLT concept Version 1 update                    31-05-13 20.0.0
+//      Layout of PLT has info_state added
+//       all version 1.xx blocks are related to the PLT Version 1 concept
+//       blocks with version number 0.xx are no changed by PLT concept
+//
+//Minor release update PR/CR                                    22-04-13 15.0.0
+//      solved bugs 2Dir merge & update Decision Point
+//
+//Minor release update PR/CR                                    24-01-13 14.0.0
+//      solved bugs in TCTC & SVZ & Registers & Item not Allowed
+//
+//Minor release update PR/CR                                    05-10-12 13.0.0
+//      Add CIZ10 & VDZ & VBZ06 & Start_Up distance
+//
+//Patch 1 Release 12                                            03-08-12 12.1.0
+//
+//Minor release update PR/CR                                    29-06-12 12.0.0
+//
+//Minor release update after commisioning Kiev                  06-04-12 11.0.0
+//
+//Minor release update during commisioning Kiev                 13-01-12 10.0.0
+//     added MLZ & TP177 & update intern logging
+//
+//Minor release update after Skopje                             07-10-11  9.0.0
+//     added decision point
+//
+//Minor release update after Antalya                            07-07-11  8.0.0
+//
+//Minor release update PR/CR of Kiev                            15-04-11  7.0.0
+//
+//Minor release                                                 31-01-11  6.0.0
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =Empty Network
+
+END_FUNCTION_BLOCK
+

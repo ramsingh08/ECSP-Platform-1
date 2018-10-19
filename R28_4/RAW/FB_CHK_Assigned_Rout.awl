@@ -1,0 +1,106 @@
+FUNCTION_BLOCK "FB_CHK_Assigned_Rout"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Check the LNK number in a DB_Route_List, validate the LNK number in the 
+//DB_Route_List if they are not same then clear the LNK number in the 
+//DB_Route_List.
+//
+//History:                                                                        
+//This version   %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:35:13 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//Initial revision                                      nlHdL    11-12-13  0.01
+FAMILY : General
+VERSION : 0.0
+
+
+VAR
+  s_Route_Number : INT ;	//Route number counter
+END_VAR
+VAR_TEMP
+  t_Record_Length : INT ;	//Temp length of used record
+  t_Route_LNK_Found : INT ;	//Temp entry in Route
+  t_AR1_BackUp : DWORD ;	//AR1 back-up
+  t_LNK_DB_Route_Number : INT ;	//DB_LNK_List contains Route number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check the Route List
+
+      OPN   "DB_Route_List"; //Open the Route list
+      L     DBW    2; 
+      T     #t_Record_Length; 
+      L     DBW    6; 
+      +     -1; 
+      L     #s_Route_Number; //Checking for Maximum Route Item present
+      ==I   ; 
+      JCN   AA02; 
+
+      L     1; 
+      T     #s_Route_Number; 
+      JU    AA99; 
+
+AA02: L     #s_Route_Number; //Incremental Route number to DB_Route_List
+      +     1; 
+      T     #s_Route_Number; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Check if Route number is Assigned
+//If entry is not assigned then end block.
+      L     #t_Record_Length; 
+      L     #s_Route_Number; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+// Loop to check if entry = 0
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Route_LNK_Found; //LNK Number in DB_Route_List
+      L     0; 
+      <>I   ; 
+      JCN   BA99; // Route number is not Assigned jump to end of the network
+
+      TAR1  #t_AR1_BackUp; 
+
+//Open the LNK_DB & verify the Route number
+
+      OPN   "DB_LNK_List"; // Open LNK list
+      L     DBW    2; 
+      T     #t_Record_Length; 
+
+      L     #t_Route_LNK_Found; 
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#8.0]; 
+      T     #t_LNK_DB_Route_Number; //Route assigned in the DB_LNK_List 
+
+
+      L     #s_Route_Number; //Route number to be checked
+      L     #t_LNK_DB_Route_Number; //Route number assigned in the DB_LNK_List 
+      <>I   ; 
+      JCN   BA99; //If Not equall clear the LNK in DB_Route_List
+
+      LAR1  #t_AR1_BackUp; 
+
+      OPN   "DB_Route_List"; 
+      L     0; 
+      T     DBW [AR1,P#0.0]; //LNK Number in DB_Route_List
+
+//-----Log the Event--------------//
+// Log event will be reported by the FB_CHK_Assigned_LNK when Route number is cleared
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

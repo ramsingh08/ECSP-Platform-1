@@ -1,0 +1,37 @@
+TYPE "UDT_ARZ_1Ind_Status"
+TITLE =%version: 0.02 % CN: 10 
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 6 juli 2015 10:00:20 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//10433: Initial version                                nlple    23-09-13   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Full_level_1 : BOOL ;	//Carrousel full level 1 reached	
+   Full_level_2 : BOOL ;	//Carrousel full level 2 reached		
+   Full_level_3 : BOOL ;	//Carrousel full level 3 reached		
+   Full_level_4 : BOOL ;	//Carrousel full level 4 reached		
+   Full_Error : BOOL ;	//Carrousel full Error	
+   PEC_Blockage_1 : BOOL ;	//Photo Cell Induct-1 blockage
+   spare_0_6 : BOOL ;	//spare_0_6
+   spare_0_7 : BOOL ;	//spare_0_7
+   TS_PEC_Blockage : BOOL ;	//Photo Cell Trigger Start blockage
+   PEC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PEC_ASI_Error : BOOL ;	//ASI slave error
+   SLC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   SLC_ASI_Error : BOOL ;	//ASI slave error
+   PBB_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_ASI_Error : BOOL ;	//ASI slave error
+   spare_1_7 : BOOL ;	//spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,738 @@
+FUNCTION "FC_Crt_PackScreened" : VOID
+TITLE =%version: 0.16 % CN: 32
+//Function:
+//Prepare and send message 'PackageReport' - Screening Result
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:31:57 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.16
+//23155: TIR in message for tubtrace                    nlHdL    24-04-15   0.16
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.15
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.08
+//18032: package instr & package rep update             nlHdL    14-02-14   0.07
+//17936: Update jumplabels add process level 3 till 5   nlHdL    10-02-14   0.06
+//17936: Added sending process level 3 till 5           nlHdL    06-02-14   0.05
+//17270: Check PID <> 0 when message to HLC             nlHdL    13-12-13   0.04
+//17270: Check PID <> 0 when message to HLC             nlHdL    13-12-13   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//15170: Changed BTI to BTD for 4 digit Area num        nlHdL    13-08-13   0.02
+//Initial Version based on version 0.10 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Data : INT ;	//Data needed to send the message
+  i_FIFO_PLC_DB_num : INT ;	//Number of DB PLC FIFO
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_LIC : INT ;	//The LIC record used to create the message and send to SAC
+  t_NIR : INT ;	//The NIR record used to create the message and send to SAC
+  t_Reached_Level : INT ;	//Reached level
+  t_TIC_Number : INT ;	//TIC number
+  t_Result : INT ;	//Result
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1 and Get Date and Time
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Outgoing_Msgs".PackageReport.body.EventTime);
+
+NETWORK
+TITLE =BA: Read LIC and NIR record
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".NIR,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_NIR);
+
+NETWORK
+TITLE =CA: Write messageID
+
+      AN    "M_Comm_Degraded"; // When in degraded mode
+      JCN   CA01; 
+
+      L     210; // When NOT in degraded mode
+      T     "DB_Outgoing_Msgs".PackageReport.body.MessageID; 
+
+      JU    CA99; 
+
+CA01: L     1210; // When in degraded mode
+      T     "DB_Outgoing_Msgs".PackageReport.body.MessageID; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".PackageReport.body.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".PackageReport.body.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".PackageReport.body.EquipmentID; // Transfer to outgoing messages
+NETWORK
+TITLE =EA: Handle PIC code
+
+      L     #t_LIC; // Write LIC number in the message
+      T     "DB_Outgoing_Msgs".PackageReport.body.LIC; 
+NETWORK
+TITLE =FA: Clear previous entries
+
+      L     0; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_1; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_2; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_3; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_4; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_5; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_1; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_2; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_3; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_4; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_5; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.Route_Result.Route_Result; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.Route_Result.Location; 
+
+      L     '0'; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[1]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[2]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[3]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[4]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[5]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[6]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[7]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[8]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[9]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN1[10]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[1]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[2]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[3]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[4]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[5]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[6]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[7]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[8]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[9]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN2[10]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[1]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[2]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[3]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[4]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[5]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[6]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[7]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[8]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[9]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScanResult.LPN3[10]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[1]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[2]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[3]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[4]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[5]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[6]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[7]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[8]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[9]; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningID[10]; 
+
+NETWORK
+TITLE =GA: Copy Information Record into message
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport.body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     "DB_Outgoing_Msgs".PackageReport.body.BIR.PID; 
+      L     0; 
+      ==D   ; 
+      JCN   GA01; 
+
+      L     2209; // When PID = 0 then send log messagePackageReport no pid
+      T     "DB_Outgoing_Msgs".PackageReport.body.MessageID; 
+
+GA01: NOP   0; 
+      L     0; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.TIR.ID; 
+
+      L     "DB_Setting".common.External_Log_Level; 
+      L     4; 
+      >I    ; 
+      JCN   GA02; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_TIC_Number);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_TIC_Number,
+           i_ANY_Data_Record        := "DB_UDT_TIC_Record".TIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport.body.TIR,
+           i_DB                     := "DB_TIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+GA02: NOP   0; 
+NETWORK
+TITLE =HA: Copy screening results (Process 1)
+
+      L     0; 
+      T     #t_Reached_Level; 
+      T     #t_Result; 
+
+      A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Reached_Screen_Level_1; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_1; 
+      JCN   HA02; 
+
+      L     1; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_1; 
+      JCN   HA01; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    HA02; 
+
+HA01: L     2; 
+      T     #t_Result; 
+
+HA02: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Reached_Screen_Level_2; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_2; 
+      JCN   HA04; 
+
+      L     2; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_2; 
+      JCN   HA03; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    HA04; 
+
+HA03: L     2; 
+      T     #t_Result; 
+
+HA04: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Reached_Screen_Level_3; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_3; 
+      JCN   HA06; 
+
+      L     3; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_3; 
+      JCN   HA05; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    HA06; 
+
+HA05: L     2; 
+      T     #t_Result; 
+
+HA06: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Reached_Screen_Level_4; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_4; 
+      JCN   HA08; 
+
+      L     4; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_4; 
+      JCN   HA07; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    HA08; 
+
+HA07: L     2; 
+      T     #t_Result; 
+
+HA08: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Reached_Screen_Level_5; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_5; 
+      JCN   HA10; 
+
+      L     5; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_1.Failed_Screen_Level_5; 
+      JCN   HA09; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    HA10; 
+
+HA09: L     2; 
+      T     #t_Result; 
+
+HA10: L     #t_Reached_Level; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_1; 
+
+      L     #t_Result; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_1; 
+NETWORK
+TITLE =IA: Determine customs result (Process 2)
+
+      L     0; 
+      T     #t_Reached_Level; 
+      T     #t_Result; 
+
+      A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Reached_Screen_Level_1; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_1; 
+      JCN   IA02; 
+
+      L     1; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_1; 
+      JCN   IA01; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    IA02; 
+
+IA01: L     2; 
+      T     #t_Result; 
+
+IA02: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Reached_Screen_Level_2; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_2; 
+      JCN   IA04; 
+
+      L     2; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_2; 
+      JCN   IA03; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    IA04; 
+
+IA03: L     2; 
+      T     #t_Result; 
+
+IA04: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Reached_Screen_Level_3; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_3; 
+      JCN   IA06; 
+
+      L     3; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_3; 
+      JCN   IA05; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    IA06; 
+
+IA05: L     2; 
+      T     #t_Result; 
+
+IA06: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Reached_Screen_Level_4; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_4; 
+      JCN   IA08; 
+
+      L     4; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_4; 
+      JCN   IA07; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    IA08; 
+
+IA07: L     2; 
+      T     #t_Result; 
+
+IA08: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Reached_Screen_Level_5; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_5; 
+      JCN   IA10; 
+
+      L     5; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_2.Failed_Screen_Level_5; 
+      JCN   IA09; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    IA10; 
+
+IA09: L     2; 
+      T     #t_Result; 
+
+IA10: L     #t_Reached_Level; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_2; 
+
+      L     #t_Result; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_2; 
+NETWORK
+TITLE =JA: Determine process 3 result
+
+      L     0; 
+      T     #t_Reached_Level; 
+      T     #t_Result; 
+
+      A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Reached_Screen_Level_1; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_1; 
+      JCN   JA02; 
+
+      L     1; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_1; 
+      JCN   JA01; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    JA02; 
+
+JA01: L     2; 
+      T     #t_Result; 
+
+JA02: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Reached_Screen_Level_2; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_2; 
+      JCN   JA04; 
+
+      L     2; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_2; 
+      JCN   JA03; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    JA04; 
+
+JA03: L     2; 
+      T     #t_Result; 
+
+JA04: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Reached_Screen_Level_3; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_3; 
+      JCN   JA06; 
+
+      L     3; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_3; 
+      JCN   JA05; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    JA06; 
+
+JA05: L     2; 
+      T     #t_Result; 
+
+JA06: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Reached_Screen_Level_4; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_4; 
+      JCN   JA08; 
+
+      L     4; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_4; 
+      JCN   JA07; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    JA08; 
+
+JA07: L     2; 
+      T     #t_Result; 
+
+JA08: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Reached_Screen_Level_5; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_5; 
+      JCN   JA10; 
+
+      L     5; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_3.Failed_Screen_Level_5; 
+      JCN   JA09; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    JA10; 
+
+JA09: L     2; 
+      T     #t_Result; 
+
+JA10: L     #t_Reached_Level; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_3; 
+
+      L     #t_Result; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_3; 
+NETWORK
+TITLE =KA: Determine process 4 result
+
+      L     0; 
+      T     #t_Reached_Level; 
+      T     #t_Result; 
+
+      A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Reached_Screen_Level_1; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_1; 
+      JCN   KA02; 
+
+      L     1; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_1; 
+      JCN   KA01; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    KA02; 
+
+KA01: L     2; 
+      T     #t_Result; 
+
+KA02: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Reached_Screen_Level_2; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_2; 
+      JCN   KA04; 
+
+      L     2; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_2; 
+      JCN   KA03; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    KA04; 
+
+KA03: L     2; 
+      T     #t_Result; 
+
+KA04: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Reached_Screen_Level_3; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_3; 
+      JCN   KA06; 
+
+      L     3; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_3; 
+      JCN   KA05; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    KA06; 
+
+KA05: L     2; 
+      T     #t_Result; 
+
+KA06: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Reached_Screen_Level_4; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_4; 
+      JCN   KA08; 
+
+      L     4; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_4; 
+      JCN   KA07; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    KA08; 
+
+KA07: L     2; 
+      T     #t_Result; 
+
+KA08: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Reached_Screen_Level_5; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_5; 
+      JCN   KA10; 
+
+      L     5; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_4.Failed_Screen_Level_5; 
+      JCN   KA09; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    KA10; 
+
+KA09: L     2; 
+      T     #t_Result; 
+
+KA10: L     #t_Reached_Level; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_4; 
+
+      L     #t_Result; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_4; 
+NETWORK
+TITLE =LA: Determine process 5 result
+
+      L     0; 
+      T     #t_Reached_Level; 
+      T     #t_Result; 
+
+      A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Reached_Screen_Level_1; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_1; 
+      JCN   LA02; 
+
+      L     1; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_1; 
+      JCN   LA01; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    LA02; 
+
+LA01: L     2; 
+      T     #t_Result; 
+
+LA02: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Reached_Screen_Level_2; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_2; 
+      JCN   LA04; 
+
+      L     2; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_2; 
+      JCN   LA03; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    LA04; 
+
+LA03: L     2; 
+      T     #t_Result; 
+
+LA04: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Reached_Screen_Level_3; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_3; 
+      JCN   LA06; 
+
+      L     3; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_3; 
+      JCN   LA05; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    LA06; 
+
+LA05: L     2; 
+      T     #t_Result; 
+
+LA06: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Reached_Screen_Level_4; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_4; 
+      JCN   LA08; 
+
+      L     4; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_4; 
+      JCN   LA07; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    LA08; 
+
+LA07: L     2; 
+      T     #t_Result; 
+
+LA08: A     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Reached_Screen_Level_5; 
+      O     "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_5; 
+      JCN   LA10; 
+
+      L     5; 
+      T     #t_Reached_Level; 
+
+      AN    "DB_Outgoing_Msgs".PackageReport.body.BIR.Process_5.Failed_Screen_Level_5; 
+      JCN   LA09; 
+
+      L     1; 
+      T     #t_Result; 
+      JU    LA10; 
+
+LA09: L     2; 
+      T     #t_Result; 
+
+LA10: L     #t_Reached_Level; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningLevel.Process_5; 
+
+      L     #t_Result; 
+      T     "DB_Outgoing_Msgs".PackageReport.body.ScreeningResult.Process_5; 
+NETWORK
+TITLE =MA: Copy Screening machine ID
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_NIR,
+           i_ANY_Data_Record        := "DB_UDT_NIR_Record".X_RayIdscreening,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport.body.ScreeningID,
+           i_DB                     := "DB_NIR_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =NA: Put message in buffer
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".PackageReport,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_PLC_DB_num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+NETWORK
+TITLE =OA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+END_FUNCTION
+

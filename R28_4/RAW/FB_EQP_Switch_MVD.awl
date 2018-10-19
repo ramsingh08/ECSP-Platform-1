@@ -1,0 +1,509 @@
+FUNCTION_BLOCK "FB_EQP_Switch_MVD"
+TITLE =%version: 0.04 % CN: 40
+//Function:                         
+//Control a device that switches between three positions using a movidrive
+//with one proximity switch for reference and two limit switches for error 
+//control. 
+//
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   maandag 6 juli 2015 10:36:02 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//21434: Removed unused double detection                nltny    19-01-15   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//PR14161 Update violation coding convention 9          nlple    25-06-13   0.02
+//Initial version                                       nlHHop   31-05-12   0.01
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Manual_Mode : BOOL ;	//CMD: Activate manual mode
+  i_CMD_Manual_High : BOOL ;	//CMD: Manual switch command High (True = Active)
+  i_CMD_Manual_Low : BOOL ;	//CMD: Manual switch command Low (True = Active)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_High_Position : BOOL ;	//CMD: Request to go to High position
+  i_CMD_Middle_Position : BOOL ;	//CMD: Request to go to Middle position
+  i_LADDR_MVDRV : INT ;	//Begin addres of profibus node from Movidrive
+  i_CFG_Position_Up : INT  := 1024;	//CFG: Position Up
+  i_CFG_Position_Middle : INT ;	//CFG: Position Middle
+  i_CFG_Position_Down : INT  := 50;	//CFG: Position Down
+  i_CFG_Default_Speed : INT  := 1500;	//CFG: Speed of the Up movement
+  i_CFG_Homing_Speed : INT  := 500;	//CFG: Speed for moving to Home position
+  i_CFG_Timeout_Pos_High : INT  := 4000;	//CFG: [ms] Time out on changing to High position
+  i_CFG_Timeout_Pos_Middle : INT ;	//CFG: [ms] Time out on changing to Middle position
+  i_CFG_Timeout_Pos_Low : INT  := 4000;	//CFG: [ms] Time out on changing to Low position
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_ST_Running : BOOL ;	//ST: Section is running
+  o_ST_Started : BOOL ;	//ST: Started
+  o_ST_Homing_Done : BOOL ;	//ST: Indicate that homing routine is done
+  o_ST_Down_Time_Out : BOOL ;	//ST: Switch direction down time out
+  o_ST_Middle_Time_Out : BOOL ;	//ST: Switch direction middle time out
+  o_ST_Up_Time_out : BOOL ;	//ST: Switch Direction Down Time out
+  o_ST_Position_is_Up : BOOL ;	//ST: Position is up
+  o_ST_Position_is_Middle : BOOL ;	//ST: Position is middle
+  o_ST_Position_is_Down : BOOL ;	//ST: Position is down
+  o_ST_LS_Limit_Up : BOOL ;	//ST: Limit switch direction 2
+  o_ST_LS_Limit_Down : BOOL ;	//ST: Limit switch direction 1
+  o_ST_Mvdrv_Comm_Error : BOOL ;	//ST: Movidrive communication error
+  o_ST_Mvdrv_Error : BOOL ;	//ST: Movidrive error
+  o_ST_Mvdrv_Warning : BOOL ;	//ST: Movidrive warning
+END_VAR
+VAR
+  s_EQP_Operational_On : BOOL ;	//Section is Operational On
+  s_Movidrive_Comm_Error : BOOL ;	//Communication error when communicating with the movidrive
+  s_Homing_Ok : BOOL ;	//Homing is OK
+  s_Homing : BOOL ;	//Busy with Homing
+  s_Move_Up : BOOL ;	//SWS move Up
+  s_Move_Middle : BOOL ;	//SWS move Middle
+  s_Move_Down : BOOL ;	//SWS move Down
+  s_SWS_PI_Data : "UDT_SWS_MVD_PI_Data";	//Input data from movidrive
+  s_SWS_PO_Data : "UDT_SWS_MVD_PO_Data";	//Output data to movidrive
+  s_Error_Present : BOOL ;	//Error status present
+  s_RET_VAL_Read : INT ;	//Return value function call read
+  s_RET_VAL_Write : INT ;	//Return value function call write
+  s_Cnt_Timeout_Pos_Dir_1 : INT ;	//Current time-out value for positon direction 1
+  s_Cnt_Timeout_Pos_Dir_2 : INT ;	//Current time-out value for positon direction 2
+  s_Extend_Reset_to_Mvdrv : INT ;	//Extend counter for the reset to the movidrive
+  s_Cnt_Timeout_Pos_Middle : INT ;	//Current time-out value for position middle
+END_VAR
+VAR_TEMP
+  t_LADDR : WORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get Input/Output start address of the Movidrive
+//Set temps from Input area pointer
+      L     #i_LADDR_MVDRV; 
+      T     #t_LADDR; 
+
+NETWORK
+TITLE =BA: Read data from drive control (SEW) + Handle Errors
+//The Movidrive uses peripheral IO at address i_Mvdrv_IO_Address for 
+//communication. The Pheriperal IO is copied to s_Receive_Buffer (they must have 
+//the same size). The status of copying is checked to be OK.
+      NOP   0; 
+//Reset Movidrive Errors
+      O     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; // OR Safety system Not OK
+      R     #s_Movidrive_Comm_Error; 
+      R     #o_ST_Mvdrv_Comm_Error; 
+      R     #o_ST_Mvdrv_Error; 
+      R     #o_ST_LS_Limit_Down; 
+      R     #o_ST_LS_Limit_Up; 
+      R     #o_ST_Mvdrv_Warning; 
+
+//Limit Switch Down
+
+      A     #s_SWS_PI_Data.PI1_Status_word.Limit_switch_CCW; 
+      A     #s_Homing_Ok; 
+      S     #o_ST_LS_Limit_Down; 
+
+//Limit Switch Up
+      A     #s_SWS_PI_Data.PI1_Status_word.Limit_switch_CW; 
+      A     #s_Homing_Ok; 
+      S     #o_ST_LS_Limit_Up; 
+
+      A     #i_CMD_Reset; 
+      JCN   BA01; 
+
+      L     20000; 
+      T     #s_Extend_Reset_to_Mvdrv; 
+
+      SET   ; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Fault_Reset; 
+
+BA01: L     #s_Extend_Reset_to_Mvdrv; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JP    BA02; 
+
+      CLR   ; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Fault_Reset; 
+
+      L     0; 
+BA02: T     #s_Extend_Reset_to_Mvdrv; 
+
+//Copy data from peripheral IO to Receive Buffer
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_LADDR,
+           RET_VAL                  := #s_RET_VAL_Read,
+           RECORD                   := #s_SWS_PI_Data);
+
+      L     #s_RET_VAL_Read; //IF s_RET_VAL_Read <> 0
+      L     0; 
+      <>I   ; 
+      S     #s_Movidrive_Comm_Error; //THEN an error occurred communicating with the Movidrive
+
+//Movidrive Communication Error
+      A     #s_Movidrive_Comm_Error; //IF communication error 
+      A     #i_Available_IO; //AND IO available
+      A     #i_Safety_OK; //AND Safety system OK
+
+      S     #o_ST_Mvdrv_Comm_Error; //SET Communication error
+
+      AN    #s_Movidrive_Comm_Error; //IF NOT communication error
+      A     #s_SWS_PI_Data.PI1_Status_word.Fault_warning; //AND fault or warning
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND Inverter Ready
+      JCN   BA03; 
+
+      S     #o_ST_Mvdrv_Warning; //SET Movidrive Warning
+
+      JU    BA99; 
+
+BA03: AN    #s_Movidrive_Comm_Error; //IF NOT communication error
+      A     #s_SWS_PI_Data.PI1_Status_word.Fault_warning; //AND fault or warning
+      AN    #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND NOT Inverter Ready
+      JCN   BA99; 
+
+      S     #o_ST_Mvdrv_Error; //SET Movidrive Error
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =CA: Error Time-out detection or double detection
+
+      O     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_Down_Time_Out; 
+      R     #o_ST_Up_Time_out; 
+      R     #o_ST_Middle_Time_Out; 
+
+// Time out switch movement
+//Evaluation time out movement UP
+      AN    #s_Move_Down; //If the motor is not running towards low position
+      O     #o_ST_Position_is_Down; //Or the positon dir 1 is reached
+      JCN   CA01; //Then Reset timer.
+      L     #i_CFG_Timeout_Pos_Low; //Set the Time-out timer to default settings
+      T     #s_Cnt_Timeout_Pos_Dir_1; 
+CA01: L     #s_Cnt_Timeout_Pos_Dir_1; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   CA02; //If Negative then
+      L     0; //Keep counter to zero
+CA02: T     #s_Cnt_Timeout_Pos_Dir_1; 
+      L     #i_CFG_Timeout_Pos_Low; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_Cnt_Timeout_Pos_Dir_1; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      S     #o_ST_Down_Time_Out; //.. And set DS error Time_Out
+
+//Evaluation time out movement Down
+      AN    #s_Move_Up; //If the motor is not running towards low position
+      O     #o_ST_Position_is_Up; //Or the positon dir 2 is reached
+      JCN   CA03; //Then Reset timer.
+      L     #i_CFG_Timeout_Pos_High; //Set the Time-out timer to default settings
+      T     #s_Cnt_Timeout_Pos_Dir_2; 
+CA03: L     #s_Cnt_Timeout_Pos_Dir_2; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   CA04; //If Negative then
+      L     0; //Keep counter to zero
+CA04: T     #s_Cnt_Timeout_Pos_Dir_2; 
+      L     #i_CFG_Timeout_Pos_High; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_Cnt_Timeout_Pos_Dir_2; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      S     #o_ST_Up_Time_out; //.. And set DS error Time_Out
+
+//Evaluation time out movement Middle
+      AN    #s_Move_Middle; //If the motor is not running towards low position
+      O     #o_ST_Position_is_Middle; //Or the positon dir 2 is reached
+      JCN   CA05; //Then Reset timer.
+      L     #i_CFG_Timeout_Pos_Middle; //Set the Time-out timer to default settings
+      T     #s_Cnt_Timeout_Pos_Middle; 
+CA05: L     #s_Cnt_Timeout_Pos_Middle; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   CA06; //If Negative then
+      L     0; //Keep counter to zero
+CA06: T     #s_Cnt_Timeout_Pos_Middle; 
+      L     #i_CFG_Timeout_Pos_Middle; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_Cnt_Timeout_Pos_Middle; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      S     #o_ST_Middle_Time_Out; //.. And set DS error Time_Out
+
+NETWORK
+TITLE =DA: Reset Movidrive signals
+
+      SET   ; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Go_To_Position; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Reserved_2; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      R     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+
+//Reset Homing if IPOS not in reference
+      ON    #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      O     #o_ST_LS_Limit_Down; 
+      O     #o_ST_LS_Limit_Up; 
+      R     #s_Homing_Ok; 
+      R     #o_ST_Homing_Done; 
+
+//Set Inverter to AUTO mode
+      CLR   ; 
+      A     #i_CMD_Enable; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Go_To_Position; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Reserved_2; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+
+NETWORK
+TITLE =EA: Homing the movidrive
+//When the movidrive has no error and the section is operational and no IPOS 
+//reference (StatusWord Bit2) then start the homing function.
+      AN    #s_Homing_Ok; 
+      A     #s_EQP_Operational_On; 
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND Inverter Ready
+      AN    #o_ST_Mvdrv_Error; 
+      AN    #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Go_To_Position; //Set Mode to homing
+      =     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+      =     #s_Homing; 
+
+//Homing function is OK
+      A     #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      R     #s_Homing; 
+      S     #s_Homing_Ok; 
+      S     #o_ST_Homing_Done; 
+
+NETWORK
+TITLE =FA: Move manual Up and Down
+
+      A     #i_CMD_Manual_Mode; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+      R     #s_SWS_PO_Data.PO1_Control_word.Go_To_Position; 
+
+      A     #i_CMD_Manual_High; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Start_Manual_Up; // #s_SWS_PO_Data.PO1_Control_word.Reserved_3    //Manual Up command
+
+      A     #i_CMD_Manual_Low; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Start_Manual_Down; //  #s_SWS_PO_Data.PO1_Control_word.Reserved_4    //Manual Down command
+
+NETWORK
+TITLE =GA: Create error status
+
+      A     #o_ST_Down_Time_Out; 
+      O     #o_ST_Middle_Time_Out; 
+      O     #o_ST_Up_Time_out; 
+      O     #o_ST_LS_Limit_Down; 
+      O     #o_ST_LS_Limit_Up; 
+      O     #o_ST_Mvdrv_Comm_Error; 
+      O     #o_ST_Mvdrv_Error; 
+      =     #s_Error_Present; 
+
+NETWORK
+TITLE =HA: Determine 'Operational_ON' status
+
+      A     #i_CMD_Start; 
+      S     #s_EQP_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #i_Ext_Req_Stop; 
+      ON    #i_Safety_OK; 
+      O     #s_Error_Present; 
+      )     ; 
+      R     #s_EQP_Operational_On; 
+
+NETWORK
+TITLE =IA: Position Up to movidrive
+
+      A     #s_EQP_Operational_On; 
+      AN    #i_Ext_Req_Halt; 
+      AN    #s_Error_Present; 
+      A     #i_CMD_High_Position; 
+      AN    #i_CMD_Middle_Position; 
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; 
+      AN    #s_Homing; 
+      AN    #o_ST_Position_is_Up; 
+      =     #s_Move_Up; 
+
+NETWORK
+TITLE =JA: Position Middle to movidrive
+
+      A     #s_EQP_Operational_On; 
+      AN    #i_Ext_Req_Halt; 
+      AN    #s_Error_Present; 
+      AN    #i_CMD_High_Position; 
+      A     #i_CMD_Middle_Position; 
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; 
+      AN    #s_Homing; 
+      AN    #o_ST_Position_is_Middle; 
+      =     #s_Move_Middle; 
+
+NETWORK
+TITLE =KA: Position Down to movidrive
+//Auto position Down
+      A     #s_EQP_Operational_On; 
+      AN    #i_Ext_Req_Halt; 
+      AN    #s_Error_Present; 
+      AN    #i_CMD_High_Position; 
+      AN    #i_CMD_Middle_Position; 
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND Inverter Ready
+      AN    #s_Homing; 
+      AN    #o_ST_Position_is_Down; 
+      =     #s_Move_Down; 
+
+NETWORK
+TITLE =LA: Determine if position is Up, Middle or Down
+
+      L     #i_CFG_Position_Up; 
+      L     10; 
+      -I    ; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      <I    ; 
+      A(    ; 
+      L     #i_CFG_Position_Up; 
+      L     10; 
+      +I    ; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      >I    ; 
+      )     ; 
+      AN    #s_Homing; 
+      =     #o_ST_Position_is_Up; 
+
+      L     #i_CFG_Position_Middle; 
+      L     10; 
+      -I    ; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      <I    ; 
+      A(    ; 
+      L     #i_CFG_Position_Middle; 
+      L     10; 
+      +I    ; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      >I    ; 
+      )     ; 
+      AN    #s_Homing; 
+      AN    #s_Move_Up; 
+      AN    #s_Move_Down; 
+      =     #o_ST_Position_is_Middle; 
+
+      L     #i_CFG_Position_Down; 
+      L     10; 
+      -I    ; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      <I    ; 
+      A(    ; 
+      L     #i_CFG_Position_Down; 
+      L     10; 
+      +I    ; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      >I    ; 
+      )     ; 
+      AN    #s_Homing; 
+      =     #o_ST_Position_is_Down; 
+
+NETWORK
+TITLE =MA: Speed for drive control (SEW)
+
+      L     0; 
+
+      A     #i_CMD_Manual_Mode; 
+      O     #s_Homing; 
+      JCN   MA02; 
+
+      L     #i_CFG_Homing_Speed; 
+      JU    MA03; 
+
+MA02: A     #s_Move_Down; 
+      O     #s_Move_Middle; 
+      O     #s_Move_Up; 
+      JCN   MA03; 
+
+      L     #i_CFG_Default_Speed; 
+
+MA03: T     #s_SWS_PO_Data.PO2_Set_Speed; 
+
+NETWORK
+TITLE =NA: Position for drive control (SEW)
+
+      L     -1; 
+
+      A     #s_Move_Down; 
+      JCN   NA01; 
+
+      L     #i_CFG_Position_Down; 
+
+NA01: A     #s_Move_Middle; 
+      JCN   NA02; 
+
+      L     #i_CFG_Position_Middle; 
+
+NA02: A     #s_Move_Up; 
+      JCN   NA03; 
+
+      L     #i_CFG_Position_Up; 
+
+NA03: T     #s_SWS_PO_Data.PO3_Set_Position; 
+
+NETWORK
+TITLE =OA: Write data to drive control (SEW)
+//Copy data from peripheral IO to Receive Buffer
+      CALL "DPWR_DAT" (
+           LADDR                    := #t_LADDR,
+           RECORD                   := #s_SWS_PO_Data,
+           RET_VAL                  := #s_RET_VAL_Write);
+
+      L     #s_RET_VAL_Write; //IF s_RET_VAL_Read <> 0
+      L     0; 
+      <>I   ; 
+      S     #s_Movidrive_Comm_Error; //THEN an error occurred communicating with the Movidrive
+
+NETWORK
+TITLE =PA: Ready to restart indication to Equipment Control
+
+      AN    #s_EQP_Operational_On; 
+      AN    #s_Error_Present; 
+      A     #i_CMD_Enable; 
+      AN    #i_Ext_Req_Stop; 
+      =     #o_Ready_To_Restart; 
+
+NETWORK
+TITLE =QA: Status running
+
+      A     #s_Move_Down; 
+      O     #s_Move_Middle; 
+      O     #s_Move_Up; 
+      =     #o_ST_Running; 
+
+NETWORK
+TITLE =RA: Status started
+
+      A     #s_EQP_Operational_On; 
+      =     #o_ST_Started; 
+
+END_FUNCTION_BLOCK
+

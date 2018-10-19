@@ -1,0 +1,241 @@
+DATA_BLOCK "DB_Event_System"
+TITLE =%version: 0.05 % CN: 20 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:22:12 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    7-3-13   0.04
+//CR6240 Enlarging Entry array to 20                    nlple    11-01-11   0.03
+//Correct name                                          nlJBax   22-10-10   0.02
+//Initial revision                                      nlJBax   21-10-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entries_Used : INT ;	//Number of entries used in message DB
+   Entries_Present : INT  := 10;	//Number of entries present in message DB
+   Entry : ARRAY  [1 .. 20 ] OF STRUCT 	
+    Value : INT ;	//Value for the message (can be a LNK number as well)
+    Event_ID : INT ;	//Event ID, which event must be logged or send
+    Handled_By_HLC_SAC : BOOL ;	//This event is handled by HLC SAC
+    Handled_By_BPI_Stat : BOOL ;	//This event is handled by HLC BPI Statisticals
+    Handled_By_BPI_Log : BOOL ;	//This event is handled by HLC BPI Logging
+    Handled_By_PLC_Log : BOOL ;	//This event is handled by PLC Logging
+    Spare_4_4 : BOOL ;	
+    Spare_4_5 : BOOL ;	
+    Spare_4_6 : BOOL ;	
+    Spare_4_7 : BOOL ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+BEGIN
+   Entries_Used := 0; 
+   Entries_Present := 10; 
+   Entry[1].Value := 0; 
+   Entry[1].Event_ID := 0; 
+   Entry[1].Handled_By_HLC_SAC := FALSE; 
+   Entry[1].Handled_By_BPI_Stat := FALSE; 
+   Entry[1].Handled_By_BPI_Log := FALSE; 
+   Entry[1].Handled_By_PLC_Log := FALSE; 
+   Entry[1].Spare_4_4 := FALSE; 
+   Entry[1].Spare_4_5 := FALSE; 
+   Entry[1].Spare_4_6 := FALSE; 
+   Entry[1].Spare_4_7 := FALSE; 
+   Entry[2].Value := 0; 
+   Entry[2].Event_ID := 0; 
+   Entry[2].Handled_By_HLC_SAC := FALSE; 
+   Entry[2].Handled_By_BPI_Stat := FALSE; 
+   Entry[2].Handled_By_BPI_Log := FALSE; 
+   Entry[2].Handled_By_PLC_Log := FALSE; 
+   Entry[2].Spare_4_4 := FALSE; 
+   Entry[2].Spare_4_5 := FALSE; 
+   Entry[2].Spare_4_6 := FALSE; 
+   Entry[2].Spare_4_7 := FALSE; 
+   Entry[3].Value := 0; 
+   Entry[3].Event_ID := 0; 
+   Entry[3].Handled_By_HLC_SAC := FALSE; 
+   Entry[3].Handled_By_BPI_Stat := FALSE; 
+   Entry[3].Handled_By_BPI_Log := FALSE; 
+   Entry[3].Handled_By_PLC_Log := FALSE; 
+   Entry[3].Spare_4_4 := FALSE; 
+   Entry[3].Spare_4_5 := FALSE; 
+   Entry[3].Spare_4_6 := FALSE; 
+   Entry[3].Spare_4_7 := FALSE; 
+   Entry[4].Value := 0; 
+   Entry[4].Event_ID := 0; 
+   Entry[4].Handled_By_HLC_SAC := FALSE; 
+   Entry[4].Handled_By_BPI_Stat := FALSE; 
+   Entry[4].Handled_By_BPI_Log := FALSE; 
+   Entry[4].Handled_By_PLC_Log := FALSE; 
+   Entry[4].Spare_4_4 := FALSE; 
+   Entry[4].Spare_4_5 := FALSE; 
+   Entry[4].Spare_4_6 := FALSE; 
+   Entry[4].Spare_4_7 := FALSE; 
+   Entry[5].Value := 0; 
+   Entry[5].Event_ID := 0; 
+   Entry[5].Handled_By_HLC_SAC := FALSE; 
+   Entry[5].Handled_By_BPI_Stat := FALSE; 
+   Entry[5].Handled_By_BPI_Log := FALSE; 
+   Entry[5].Handled_By_PLC_Log := FALSE; 
+   Entry[5].Spare_4_4 := FALSE; 
+   Entry[5].Spare_4_5 := FALSE; 
+   Entry[5].Spare_4_6 := FALSE; 
+   Entry[5].Spare_4_7 := FALSE; 
+   Entry[6].Value := 0; 
+   Entry[6].Event_ID := 0; 
+   Entry[6].Handled_By_HLC_SAC := FALSE; 
+   Entry[6].Handled_By_BPI_Stat := FALSE; 
+   Entry[6].Handled_By_BPI_Log := FALSE; 
+   Entry[6].Handled_By_PLC_Log := FALSE; 
+   Entry[6].Spare_4_4 := FALSE; 
+   Entry[6].Spare_4_5 := FALSE; 
+   Entry[6].Spare_4_6 := FALSE; 
+   Entry[6].Spare_4_7 := FALSE; 
+   Entry[7].Value := 0; 
+   Entry[7].Event_ID := 0; 
+   Entry[7].Handled_By_HLC_SAC := FALSE; 
+   Entry[7].Handled_By_BPI_Stat := FALSE; 
+   Entry[7].Handled_By_BPI_Log := FALSE; 
+   Entry[7].Handled_By_PLC_Log := FALSE; 
+   Entry[7].Spare_4_4 := FALSE; 
+   Entry[7].Spare_4_5 := FALSE; 
+   Entry[7].Spare_4_6 := FALSE; 
+   Entry[7].Spare_4_7 := FALSE; 
+   Entry[8].Value := 0; 
+   Entry[8].Event_ID := 0; 
+   Entry[8].Handled_By_HLC_SAC := FALSE; 
+   Entry[8].Handled_By_BPI_Stat := FALSE; 
+   Entry[8].Handled_By_BPI_Log := FALSE; 
+   Entry[8].Handled_By_PLC_Log := FALSE; 
+   Entry[8].Spare_4_4 := FALSE; 
+   Entry[8].Spare_4_5 := FALSE; 
+   Entry[8].Spare_4_6 := FALSE; 
+   Entry[8].Spare_4_7 := FALSE; 
+   Entry[9].Value := 0; 
+   Entry[9].Event_ID := 0; 
+   Entry[9].Handled_By_HLC_SAC := FALSE; 
+   Entry[9].Handled_By_BPI_Stat := FALSE; 
+   Entry[9].Handled_By_BPI_Log := FALSE; 
+   Entry[9].Handled_By_PLC_Log := FALSE; 
+   Entry[9].Spare_4_4 := FALSE; 
+   Entry[9].Spare_4_5 := FALSE; 
+   Entry[9].Spare_4_6 := FALSE; 
+   Entry[9].Spare_4_7 := FALSE; 
+   Entry[10].Value := 0; 
+   Entry[10].Event_ID := 0; 
+   Entry[10].Handled_By_HLC_SAC := FALSE; 
+   Entry[10].Handled_By_BPI_Stat := FALSE; 
+   Entry[10].Handled_By_BPI_Log := FALSE; 
+   Entry[10].Handled_By_PLC_Log := FALSE; 
+   Entry[10].Spare_4_4 := FALSE; 
+   Entry[10].Spare_4_5 := FALSE; 
+   Entry[10].Spare_4_6 := FALSE; 
+   Entry[10].Spare_4_7 := FALSE; 
+   Entry[11].Value := 0; 
+   Entry[11].Event_ID := 0; 
+   Entry[11].Handled_By_HLC_SAC := FALSE; 
+   Entry[11].Handled_By_BPI_Stat := FALSE; 
+   Entry[11].Handled_By_BPI_Log := FALSE; 
+   Entry[11].Handled_By_PLC_Log := FALSE; 
+   Entry[11].Spare_4_4 := FALSE; 
+   Entry[11].Spare_4_5 := FALSE; 
+   Entry[11].Spare_4_6 := FALSE; 
+   Entry[11].Spare_4_7 := FALSE; 
+   Entry[12].Value := 0; 
+   Entry[12].Event_ID := 0; 
+   Entry[12].Handled_By_HLC_SAC := FALSE; 
+   Entry[12].Handled_By_BPI_Stat := FALSE; 
+   Entry[12].Handled_By_BPI_Log := FALSE; 
+   Entry[12].Handled_By_PLC_Log := FALSE; 
+   Entry[12].Spare_4_4 := FALSE; 
+   Entry[12].Spare_4_5 := FALSE; 
+   Entry[12].Spare_4_6 := FALSE; 
+   Entry[12].Spare_4_7 := FALSE; 
+   Entry[13].Value := 0; 
+   Entry[13].Event_ID := 0; 
+   Entry[13].Handled_By_HLC_SAC := FALSE; 
+   Entry[13].Handled_By_BPI_Stat := FALSE; 
+   Entry[13].Handled_By_BPI_Log := FALSE; 
+   Entry[13].Handled_By_PLC_Log := FALSE; 
+   Entry[13].Spare_4_4 := FALSE; 
+   Entry[13].Spare_4_5 := FALSE; 
+   Entry[13].Spare_4_6 := FALSE; 
+   Entry[13].Spare_4_7 := FALSE; 
+   Entry[14].Value := 0; 
+   Entry[14].Event_ID := 0; 
+   Entry[14].Handled_By_HLC_SAC := FALSE; 
+   Entry[14].Handled_By_BPI_Stat := FALSE; 
+   Entry[14].Handled_By_BPI_Log := FALSE; 
+   Entry[14].Handled_By_PLC_Log := FALSE; 
+   Entry[14].Spare_4_4 := FALSE; 
+   Entry[14].Spare_4_5 := FALSE; 
+   Entry[14].Spare_4_6 := FALSE; 
+   Entry[14].Spare_4_7 := FALSE; 
+   Entry[15].Value := 0; 
+   Entry[15].Event_ID := 0; 
+   Entry[15].Handled_By_HLC_SAC := FALSE; 
+   Entry[15].Handled_By_BPI_Stat := FALSE; 
+   Entry[15].Handled_By_BPI_Log := FALSE; 
+   Entry[15].Handled_By_PLC_Log := FALSE; 
+   Entry[15].Spare_4_4 := FALSE; 
+   Entry[15].Spare_4_5 := FALSE; 
+   Entry[15].Spare_4_6 := FALSE; 
+   Entry[15].Spare_4_7 := FALSE; 
+   Entry[16].Value := 0; 
+   Entry[16].Event_ID := 0; 
+   Entry[16].Handled_By_HLC_SAC := FALSE; 
+   Entry[16].Handled_By_BPI_Stat := FALSE; 
+   Entry[16].Handled_By_BPI_Log := FALSE; 
+   Entry[16].Handled_By_PLC_Log := FALSE; 
+   Entry[16].Spare_4_4 := FALSE; 
+   Entry[16].Spare_4_5 := FALSE; 
+   Entry[16].Spare_4_6 := FALSE; 
+   Entry[16].Spare_4_7 := FALSE; 
+   Entry[17].Value := 0; 
+   Entry[17].Event_ID := 0; 
+   Entry[17].Handled_By_HLC_SAC := FALSE; 
+   Entry[17].Handled_By_BPI_Stat := FALSE; 
+   Entry[17].Handled_By_BPI_Log := FALSE; 
+   Entry[17].Handled_By_PLC_Log := FALSE; 
+   Entry[17].Spare_4_4 := FALSE; 
+   Entry[17].Spare_4_5 := FALSE; 
+   Entry[17].Spare_4_6 := FALSE; 
+   Entry[17].Spare_4_7 := FALSE; 
+   Entry[18].Value := 0; 
+   Entry[18].Event_ID := 0; 
+   Entry[18].Handled_By_HLC_SAC := FALSE; 
+   Entry[18].Handled_By_BPI_Stat := FALSE; 
+   Entry[18].Handled_By_BPI_Log := FALSE; 
+   Entry[18].Handled_By_PLC_Log := FALSE; 
+   Entry[18].Spare_4_4 := FALSE; 
+   Entry[18].Spare_4_5 := FALSE; 
+   Entry[18].Spare_4_6 := FALSE; 
+   Entry[18].Spare_4_7 := FALSE; 
+   Entry[19].Value := 0; 
+   Entry[19].Event_ID := 0; 
+   Entry[19].Handled_By_HLC_SAC := FALSE; 
+   Entry[19].Handled_By_BPI_Stat := FALSE; 
+   Entry[19].Handled_By_BPI_Log := FALSE; 
+   Entry[19].Handled_By_PLC_Log := FALSE; 
+   Entry[19].Spare_4_4 := FALSE; 
+   Entry[19].Spare_4_5 := FALSE; 
+   Entry[19].Spare_4_6 := FALSE; 
+   Entry[19].Spare_4_7 := FALSE; 
+   Entry[20].Value := 0; 
+   Entry[20].Event_ID := 0; 
+   Entry[20].Handled_By_HLC_SAC := FALSE; 
+   Entry[20].Handled_By_BPI_Stat := FALSE; 
+   Entry[20].Handled_By_BPI_Log := FALSE; 
+   Entry[20].Handled_By_PLC_Log := FALSE; 
+   Entry[20].Spare_4_4 := FALSE; 
+   Entry[20].Spare_4_5 := FALSE; 
+   Entry[20].Spare_4_6 := FALSE; 
+   Entry[20].Spare_4_7 := FALSE; 
+END_DATA_BLOCK
+

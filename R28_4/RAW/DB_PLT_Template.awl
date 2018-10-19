@@ -1,0 +1,140 @@
+DATA_BLOCK "DB_PLT_Template"
+TITLE =%version: 1.04 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:23:53 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.04
+//21025: PLT Header Motor Run description               nlHdL    30-09-14   1.04
+//15797: Keyword release added                          nlwwij   26-09-13   1.03
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entries_Used : INT ;	//Number of entries used in tracking DB
+   Displacement : INT ;	//Displacement last PLC cycle used by read tracking functions  
+   Entries_Present : INT ;	//Number of entries present in tracking DB
+   DB_PLT_nr_Upstream : INT ;	//DB PLT number of the upstream
+   DB_PLT_nr_Downstream : INT ;	//DB PLT number of the downstream
+   Done : BOOL ;	//Header data is written in the PLT DB.
+   Motor_Run : BOOL ;	//Motor running signal
+   Motor_On_Speed : BOOL ;	//Motor on speed signal 
+   Cascade_Start_up : BOOL ;	//Cascade start up downstream
+   Section_Available : BOOL ;	//Section is available to recieve items (TEP=1)
+   Section_Operational : BOOL ;	//Section is started 
+   Item_at_Handover : BOOL ;	//Item at Handover position 
+   PEC_Latch : BOOL ;	//PEC Latch at EOS
+   Inhibit_Receive_Item : BOOL ;	//Section is setting the inhibit to receive item found in upstream handover
+   Section_Stopped : BOOL ;	//Section is stopped. (Actuele speed = 0)
+   Length_Section : INT ;	//Length of the conveyor
+   Entry : ARRAY  [1 .. 20 ] OF STRUCT 	
+    Position : INT ;	
+    Info_State : WORD ;	//W#1x PEC, W#2x Owner, W#x4 Claimed, W#x8 Virtual, PEC W#x1 /2 /3, Owner W#3x /4
+    Info_Physical : INT ;	//1= Leading Edge, 2= Trailing Edge, -3= Energy Save
+    Link : INT ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+BEGIN
+   Entries_Used := 0; 
+   Displacement := 0; 
+   Entries_Present := 0; 
+   DB_PLT_nr_Upstream := 0; 
+   DB_PLT_nr_Downstream := 0; 
+   Done := FALSE; 
+   Motor_Run := FALSE; 
+   Motor_On_Speed := FALSE; 
+   Cascade_Start_up := FALSE; 
+   Section_Available := FALSE; 
+   Section_Operational := FALSE; 
+   Item_at_Handover := FALSE; 
+   PEC_Latch := FALSE; 
+   Inhibit_Receive_Item := FALSE; 
+   Section_Stopped := FALSE; 
+   Length_Section := 0; 
+   Entry[1].Position := 0; 
+   Entry[1].Info_State := W#16#0; 
+   Entry[1].Info_Physical := 0; 
+   Entry[1].Link := 0; 
+   Entry[2].Position := 0; 
+   Entry[2].Info_State := W#16#0; 
+   Entry[2].Info_Physical := 0; 
+   Entry[2].Link := 0; 
+   Entry[3].Position := 0; 
+   Entry[3].Info_State := W#16#0; 
+   Entry[3].Info_Physical := 0; 
+   Entry[3].Link := 0; 
+   Entry[4].Position := 0; 
+   Entry[4].Info_State := W#16#0; 
+   Entry[4].Info_Physical := 0; 
+   Entry[4].Link := 0; 
+   Entry[5].Position := 0; 
+   Entry[5].Info_State := W#16#0; 
+   Entry[5].Info_Physical := 0; 
+   Entry[5].Link := 0; 
+   Entry[6].Position := 0; 
+   Entry[6].Info_State := W#16#0; 
+   Entry[6].Info_Physical := 0; 
+   Entry[6].Link := 0; 
+   Entry[7].Position := 0; 
+   Entry[7].Info_State := W#16#0; 
+   Entry[7].Info_Physical := 0; 
+   Entry[7].Link := 0; 
+   Entry[8].Position := 0; 
+   Entry[8].Info_State := W#16#0; 
+   Entry[8].Info_Physical := 0; 
+   Entry[8].Link := 0; 
+   Entry[9].Position := 0; 
+   Entry[9].Info_State := W#16#0; 
+   Entry[9].Info_Physical := 0; 
+   Entry[9].Link := 0; 
+   Entry[10].Position := 0; 
+   Entry[10].Info_State := W#16#0; 
+   Entry[10].Info_Physical := 0; 
+   Entry[10].Link := 0; 
+   Entry[11].Position := 0; 
+   Entry[11].Info_State := W#16#0; 
+   Entry[11].Info_Physical := 0; 
+   Entry[11].Link := 0; 
+   Entry[12].Position := 0; 
+   Entry[12].Info_State := W#16#0; 
+   Entry[12].Info_Physical := 0; 
+   Entry[12].Link := 0; 
+   Entry[13].Position := 0; 
+   Entry[13].Info_State := W#16#0; 
+   Entry[13].Info_Physical := 0; 
+   Entry[13].Link := 0; 
+   Entry[14].Position := 0; 
+   Entry[14].Info_State := W#16#0; 
+   Entry[14].Info_Physical := 0; 
+   Entry[14].Link := 0; 
+   Entry[15].Position := 0; 
+   Entry[15].Info_State := W#16#0; 
+   Entry[15].Info_Physical := 0; 
+   Entry[15].Link := 0; 
+   Entry[16].Position := 0; 
+   Entry[16].Info_State := W#16#0; 
+   Entry[16].Info_Physical := 0; 
+   Entry[16].Link := 0; 
+   Entry[17].Position := 0; 
+   Entry[17].Info_State := W#16#0; 
+   Entry[17].Info_Physical := 0; 
+   Entry[17].Link := 0; 
+   Entry[18].Position := 0; 
+   Entry[18].Info_State := W#16#0; 
+   Entry[18].Info_Physical := 0; 
+   Entry[18].Link := 0; 
+   Entry[19].Position := 0; 
+   Entry[19].Info_State := W#16#0; 
+   Entry[19].Info_Physical := 0; 
+   Entry[19].Link := 0; 
+   Entry[20].Position := 0; 
+   Entry[20].Info_State := W#16#0; 
+   Entry[20].Info_Physical := 0; 
+   Entry[20].Link := 0; 
+END_DATA_BLOCK
+

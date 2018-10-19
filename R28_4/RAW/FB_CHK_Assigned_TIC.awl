@@ -1,0 +1,113 @@
+FUNCTION_BLOCK "FB_CHK_Assigned_TIC"
+TITLE =%version: 0.06 % CN: 40
+//Function:
+//Check the LNK number in a DB_TIC_List, validate the LNK number in the 
+//DB_TIC_List if they are not same then clear the LNK number in the DB_TIC_List.
+//
+//History:                                                                        
+//This version   %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:35:16 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//CR19512 Update sources according S7 Manager           nlHdL    8-3-13   0.05
+//Changed in latest version like FB_CHK_Assigned_LIC    nlLvdG   26-03-12   0.04
+//Changed read position of TIC in LNK DB                nlLvdG   23-03-12   0.03
+//PR5932 Remove AR2 CHK LNK<->LIC, Pointer in DW        nlHdL    23-12-10   0.02
+//Initial revision                                      inpna    19-09-10   0.01
+FAMILY : General
+VERSION : 0.0
+
+
+VAR
+  s_LNK_Number : INT ;	//Number of LNK which is checked
+  s_List_assigned : BOOL ;	//Temp to check if list is assigned without DB PLT
+  s_TIC_Number : INT ;	//TIC counter
+END_VAR
+VAR_TEMP
+  t_Record_Length : INT ;	//Temp length of used record
+  t_TIC_LNK_Found : INT ;	//Temp entry in TIC
+  t_AR1_BackUp : DWORD ;	//AR1 back-up
+  t_LNK_DB_TIC_Number : INT ;	//DB_LNK_List contains TIC number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check the TIC List
+
+      OPN   "DB_TIC_List"; //Open the TIC list
+      L     DBW    2; 
+      T     #t_Record_Length; 
+      L     DBW    6; 
+      +     -1; 
+      L     #s_TIC_Number; //Checking for Maximum TIC Item present
+      ==I   ; 
+      JCN   AA02; 
+
+      L     1; 
+      T     #s_TIC_Number; 
+      JU    AA99; 
+
+AA02: L     #s_TIC_Number; //Incremental TIC number to DB_TIC_List
+      +     1; 
+      T     #s_TIC_Number; 
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Check if TIC is Assigned
+//If entry is not assigned then end block.
+      L     #t_Record_Length; 
+      L     #s_TIC_Number; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+// Loop to check if entry = 0
+      L     DBW [AR1,P#0.0]; 
+      T     #t_TIC_LNK_Found; //LNK Number in DB_TIC_List
+      L     0; 
+      <>I   ; 
+      JCN   BA99; // TIC is not Assigned jump to end of the network
+
+      TAR1  #t_AR1_BackUp; 
+
+//Open the LNK_DB & verify the TIC
+
+      OPN   "DB_LNK_List"; // Open LNK list
+      L     DBW    2; 
+      T     #t_Record_Length; 
+
+      L     #t_TIC_LNK_Found; 
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#4.0]; 
+      T     #t_LNK_DB_TIC_Number; //TIC assigned in the DB_LNK_List 
+
+
+      L     #s_TIC_Number; //TIC to be checked
+      L     #t_LNK_DB_TIC_Number; //TIC assigned in the DB_LNK_List 
+      <>I   ; 
+      JCN   BA99; //If Not equall clear the LNK in DB_TIC_List
+
+      LAR1  #t_AR1_BackUp; 
+
+      OPN   "DB_TIC_List"; 
+      L     0; 
+      T     DBW [AR1,P#0.0]; //LNK Number in DB_TIC_List
+
+//-----Log the Event--------------//
+// Log event will be reported by the FB_CHK_Assigned_LNK when TIC is cleared
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

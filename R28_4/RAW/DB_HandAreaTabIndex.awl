@@ -1,0 +1,66 @@
+DATA_BLOCK "DB_HandAreaTabIndex"
+TITLE =%version: 0.02 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:22:32 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.02
+//Initial Version renamed from DB_TranslTableIndex      nlHdL    18-02-14   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entry : ARRAY  [1 .. 20 ] OF STRUCT 	
+    Area_Zone_Section_ID : DINT ;	//example: AreaID 123, ZoneID 45 and SectionID 67 -> 1234567
+    TranslTable_DB_Number : INT ;	//DB number of Translation Table that belongs to Zone_Section_ID
+   END_STRUCT ;	
+  END_STRUCT ;	
+BEGIN
+   Entry[1].Area_Zone_Section_ID := L#0; 
+   Entry[1].TranslTable_DB_Number := 0; 
+   Entry[2].Area_Zone_Section_ID := L#0; 
+   Entry[2].TranslTable_DB_Number := 0; 
+   Entry[3].Area_Zone_Section_ID := L#0; 
+   Entry[3].TranslTable_DB_Number := 0; 
+   Entry[4].Area_Zone_Section_ID := L#0; 
+   Entry[4].TranslTable_DB_Number := 0; 
+   Entry[5].Area_Zone_Section_ID := L#0; 
+   Entry[5].TranslTable_DB_Number := 0; 
+   Entry[6].Area_Zone_Section_ID := L#0; 
+   Entry[6].TranslTable_DB_Number := 0; 
+   Entry[7].Area_Zone_Section_ID := L#0; 
+   Entry[7].TranslTable_DB_Number := 0; 
+   Entry[8].Area_Zone_Section_ID := L#0; 
+   Entry[8].TranslTable_DB_Number := 0; 
+   Entry[9].Area_Zone_Section_ID := L#0; 
+   Entry[9].TranslTable_DB_Number := 0; 
+   Entry[10].Area_Zone_Section_ID := L#0; 
+   Entry[10].TranslTable_DB_Number := 0; 
+   Entry[11].Area_Zone_Section_ID := L#0; 
+   Entry[11].TranslTable_DB_Number := 0; 
+   Entry[12].Area_Zone_Section_ID := L#0; 
+   Entry[12].TranslTable_DB_Number := 0; 
+   Entry[13].Area_Zone_Section_ID := L#0; 
+   Entry[13].TranslTable_DB_Number := 0; 
+   Entry[14].Area_Zone_Section_ID := L#0; 
+   Entry[14].TranslTable_DB_Number := 0; 
+   Entry[15].Area_Zone_Section_ID := L#0; 
+   Entry[15].TranslTable_DB_Number := 0; 
+   Entry[16].Area_Zone_Section_ID := L#0; 
+   Entry[16].TranslTable_DB_Number := 0; 
+   Entry[17].Area_Zone_Section_ID := L#0; 
+   Entry[17].TranslTable_DB_Number := 0; 
+   Entry[18].Area_Zone_Section_ID := L#0; 
+   Entry[18].TranslTable_DB_Number := 0; 
+   Entry[19].Area_Zone_Section_ID := L#0; 
+   Entry[19].TranslTable_DB_Number := 0; 
+   Entry[20].Area_Zone_Section_ID := L#0; 
+   Entry[20].TranslTable_DB_Number := 0; 
+END_DATA_BLOCK
+

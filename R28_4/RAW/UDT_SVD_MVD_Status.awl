@@ -1,0 +1,42 @@
+TYPE "UDT_SVD_MVD_Status"
+TITLE =%version: 0.06 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 6 juli 2015 10:05:33 %
+//              %release: VI_CONV/RA_Dev_Oakham %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//24150: comment change udt MVD / SVD                   nlHdL    03-06-15   0.06
+//24150: comment change udt MVD / SVD                   nlHdL    03-06-15   0.05
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR10260 lifesign bargraph added in HMI                nlple    19-06-12  0.02
+//PR6738 Initial revision                               nlple    01-04-10  0.01
+FAMILY : General
+
+
+  STRUCT 	
+   Fixed_Up : BOOL ;	//Fixed Up Mode
+   Fixed_Down : BOOL ;	//Fixed Down Mode
+   Manual : BOOL ;	//Manual Mode
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Pos_SWS_Up : BOOL ;	//Switch position up
+   Pos_SWS_Down : BOOL ;	//Switch position down
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+   Communication_Alive_Sign : INT ;	//Value for Communication Alive Sign bar
+  END_STRUCT ;	
+END_TYPE
+
